@@ -13,3 +13,17 @@ dialog{width:min(620px,calc(100% - 24px));max-height:92vh;border:0;border-radius
 
 /* Android 原生 App：狀態列是全螢幕疊在內容上，內容往下讓開（Capacitor 8 會提供 --safe-area-inset-top） */
 .is-native main{padding-top:calc(22px + var(--safe-area-inset-top, 32px))}
+
+/* 手機：記帳說明的表格改成卡片，不再左右滑動 */
+@media(max-width:900px){
+.guide-table-wrap{overflow-x:visible}
+.guide-card table{min-width:0;display:block}
+.guide-card thead{display:none}
+.guide-card tbody{display:grid;gap:10px}
+.guide-card tr{display:grid;gap:8px;padding:14px;border:1px solid var(--border);border-radius:16px;background:#fffafa}
+.guide-card td{display:grid;grid-template-columns:6.6em 1fr;gap:10px;padding:0;border:0;align-items:baseline;overflow-wrap:anywhere}
+.guide-card td::before{content:attr(data-label);color:var(--muted);font-size:.74rem;font-weight:700}
+.guide-card td:first-child{font-weight:700;color:var(--ink)}
+.guide-card{overflow-wrap:anywhere}
+.guide-card,.guide-hero,.guide-grid{min-width:0;max-width:100%}
+}
