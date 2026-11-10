@@ -1,0 +1,16 @@
+{
+  "name": "小豬帳本",
+  "short_name": "小豬帳本",
+  "description": "離線優先的多幣別記帳與資產總覽",
+  "lang": "zh-TW",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fff8f1",
+  "theme_color": "#f38ba0",
+  "icons": [
+    { "src": "icons/piggy.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/piggy-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

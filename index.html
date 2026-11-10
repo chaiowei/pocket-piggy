@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f38ba0">
+  <meta name="description" content="離線優先的多幣別記帳與資產總覽">
+  <title>小豬帳本</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/piggy.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="side-nav" aria-label="主要導覽">
+      <button class="brand" data-nav="overview" aria-label="小豬帳本首頁">
+        <img src="icons/piggy.svg" alt=""><span>小豬帳本</span>
+      </button>
+      <button data-nav="overview" class="nav-item active"><span>🏠</span>總覽</button>
+      <button data-nav="accounts" class="nav-item"><span>👛</span>帳戶</button>
+      <button data-action="transaction" class="nav-item nav-add"><span>＋</span>記一筆</button>
+      <button data-nav="investments" class="nav-item"><span>📈</span>投資</button>
+      <button data-nav="more" class="nav-item"><span>☰</span>更多</button>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="today-label"></p>
+          <h1 id="page-title">總覽</h1>
+        </div>
+        <div class="top-actions">
+          <span id="network-pill" class="pill">離線可用</span>
+          <button class="icon-button" data-action="sync" aria-label="立即同步" title="立即同步">↻</button>
+        </div>
+      </header>
+
+      <section id="open-warning" class="notice hidden" role="status">
+        <div><strong>開帳還沒完成</strong><p>先填期初餘額，總覽才會準確。</p></div>
+        <button data-action="wizard">開始開帳</button>
+      </section>
+
+      <section data-view="overview" class="view active">
+        <div class="hero-card">
+          <div>
+            <p>淨資產</p>
+            <strong id="net-worth">NT$0</strong>
+            <small id="sync-status">本機資料已就緒</small>
+          </div>
+          <div class="piggy-orbit" aria-hidden="true">🐷<span>✨</span></div>
+        </div>
+        <div class="metric-grid">
+          <article><span>總資產</span><strong id="total-assets">NT$0</strong></article>
+          <article><span>總負債</span><strong id="total-liabilities">NT$0</strong></article>
+          <article><span>本月支出</span><strong id="month-expense">NT$0</strong></article>
+          <article><span>待送出</span><strong id="pending-count">0 筆</strong></article>
+        </div>
+        <div class="overview-grid">
+          <article class="card chart-card">
+            <div class="card-heading"><h2>資產配置</h2><span>台幣估值</span></div>
+            <div class="donut-wrap"><div id="asset-donut" class="donut"></div><ul id="asset-legend"></ul></div>
+          </article>
+          <article class="card chart-card">
+            <div class="card-heading"><h2>本月支出分類</h2><span id="expense-total-label"></span></div>
+            <div id="expense-bars" class="bar-chart empty-state">還沒有本月支出</div>
+          </article>
+        </div>
+        <article class="card">
+          <div class="card-heading"><h2>最近交易</h2><button class="text-button" data-action="transaction">＋ 新增</button></div>
+          <div id="recent-transactions" class="list empty-state">還沒有交易，記下第一筆吧！</div>
+        </article>
+      </section>
+
+      <section data-view="accounts" class="view">
+        <div class="section-actions">
+          <button class="secondary" data-action="wizard">開帳精靈</button>
+          <button data-action="account">＋ 新增帳戶</button>
+        </div>
+        <div id="account-groups" class="stack empty-state">尚無帳戶</div>
+      </section>
+
+      <section data-view="investments" class="view">
+        <div class="section-actions"><span id="holding-total" class="section-total">總現值 NT$0</span><button data-action="holding">＋ 新增持倉</button></div>
+        <div id="holding-list" class="card-grid empty-state">尚無持倉</div>
+      </section>
+
+      <section data-view="more" class="view">
+        <div class="more-grid">
+          <article class="card">
+            <div class="card-heading"><h2>固定支出</h2><button class="text-button" data-action="recurring">＋ 新增</button></div>
+            <p class="summary-line">月均合計 <strong id="monthly-recurring">NT$0</strong></p>
+            <div id="recurring-list" class="list empty-state">尚無固定支出</div>
+          </article>
+          <article class="card settings-card">
+            <div class="card-heading"><h2>設定</h2><span id="version-label">v1.0.0</span></div>
+            <form id="settings-form">
+              <label>n8n 網址<input name="baseUrl" type="url" autocomplete="url" required></label>
+              <label>連線碼<input name="token" type="password" autocomplete="off" placeholder="由你本人輸入；程式不內建"></label>
+              <label>顯示幣別<select name="displayCurrency"><option>TWD</option><option>THB</option><option>USD</option><option>JPY</option></select></label>
+              <fieldset><legend>1 單位外幣等於多少台幣</legend>
+                <label>THB<input name="rateTHB" type="number" min="0" step="0.0001"></label>
+                <label>USD<input name="rateUSD" type="number" min="0" step="0.0001"></label>
+                <label>JPY<input name="rateJPY" type="number" min="0" step="0.0001"></label>
+              </fieldset>
+              <div class="button-row"><button type="submit">儲存設定</button><button type="button" class="secondary" data-action="full-sync">完整重新同步</button></div>
+            </form>
+          </article>
+          <article class="card queue-card">
+            <div class="card-heading"><h2>待送／失敗清單</h2><button class="text-button" data-action="retry">重試</button></div>
+            <div id="queue-list" class="list empty-state">目前沒有待送資料</div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="手機導覽">
+      <button data-nav="overview" class="active"><span>🏠</span>總覽</button>
+      <button data-nav="accounts"><span>👛</span>帳戶</button>
+      <button data-action="transaction" class="fab" aria-label="記一筆"><span>＋</span></button>
+      <button data-nav="investments"><span>📈</span>投資</button>
+      <button data-nav="more"><span>☰</span>更多</button>
+    </nav>
+  </div>
+
+  <dialog id="editor-dialog"><form method="dialog" id="editor-form"><header><h2 id="editor-title">新增</h2><button value="cancel" aria-label="關閉">×</button></header><div id="editor-fields" class="form-grid"></div><footer><button value="cancel" class="secondary">取消</button><button id="delete-button" type="button" class="danger hidden">刪除</button><button value="save" id="save-button">儲存</button></footer></form></dialog>
+  <dialog id="wizard-dialog"><form method="dialog" id="wizard-form"><header><div><p class="eyebrow">第一次使用</p><h2>開帳精靈</h2></div><button value="cancel" aria-label="關閉">×</button></header><div id="wizard-content"></div><footer><button type="button" class="secondary" id="wizard-prev">上一步</button><span id="wizard-progress"></span><button type="button" id="wizard-next">下一步</button></footer></form></dialog>
+  <div id="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <script src="app.js" defer></script>
+</body>
+</html>
