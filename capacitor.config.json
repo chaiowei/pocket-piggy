@@ -1,0 +1,12 @@
+{
+  "appId": "tw.chiaowei.pocketpiggy",
+  "appName": "小豬帳本",
+  "webDir": "dist",
+  "server": {
+    "hostname": "chaiowei.github.io",
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

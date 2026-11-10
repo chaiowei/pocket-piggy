@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.0.1-p3";
+const APP_VERSION = "2.1.0-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -34,6 +34,10 @@ function todayISO() { return new Date().toLocaleDateString("sv-SE", { timeZone: 
 function nowISO() { return new Date().toISOString(); }
 function asArray(value) { return Array.isArray(value) ? value : value ? [value] : []; }
 function number(value) { const n = Number(value); return Number.isFinite(n) ? n : 0; }
+function roundedNumber(value, digits = 8) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Number(n.toFixed(digits)) : 0;
+}
 function hasRelation(value, id) { return asArray(value).includes(id); }
 function iconFor(type = "") { return ({ 銀行: "🏦", 現金: "💵", 信用卡: "💳", 保險: "🛡️", 加密貨幣: "₿", 台股: "📊", 美股: "🗽", 泰國基金: "🌴" })[type] || "🐷"; }
 
@@ -511,7 +515,7 @@ async function generateRecurringTransactions() {
 
 async function saveTodaySnapshot() {
   const t = totals(); const date = todayISO(); const existing = state.snapshots.find((row) => (row.p?.日期 || row.p?.快照日) === date);
-  const values = { 日期: date, 快照日: date, 淨資產TWD: Math.round(t.net), 投資TWD: Math.round(t.investments), USD匯率: rate("USD"), THB匯率: rate("THB"), JPY匯率: rate("JPY"), 抓價狀態: "App 本機快照" };
+  const values = { 日期: date, 快照日: date, 淨資產TWD: Math.round(t.net), 投資TWD: Math.round(t.investments), USD匯率: roundedNumber(rate("USD"), 6), THB匯率: roundedNumber(rate("THB"), 6), JPY匯率: roundedNumber(rate("JPY"), 6), 抓價狀態: "App 本機快照" };
   await putOne("snapshots", { id: existing?.id || `snapshot-${date}`, edited: existing?.edited || null, p: values });
 }
 async function refreshPrices() {
@@ -519,10 +523,10 @@ async function refreshPrices() {
   try {
     toast("正在更新匯率與報價…");
     const fx = await fetch("https://open.er-api.com/v6/latest/TWD").then((response) => { if (!response.ok) throw new Error("匯率服務暫時無法使用"); return response.json(); });
-    if (fx?.rates) { state.settings = { ...state.settings, rateTHB: 1 / number(fx.rates.THB), rateUSD: 1 / number(fx.rates.USD), rateJPY: 1 / number(fx.rates.JPY), fxUpdatedAt: fx.time_last_update_utc || nowISO() }; await putOne("meta", state.settings); }
+    if (fx?.rates) { state.settings = { ...state.settings, rateTHB: roundedNumber(1 / number(fx.rates.THB), 6), rateUSD: roundedNumber(1 / number(fx.rates.USD), 6), rateJPY: roundedNumber(1 / number(fx.rates.JPY), 6), fxUpdatedAt: fx.time_last_update_utc || nowISO() }; await putOne("meta", state.settings); }
     if (state.settings.token && state.holdings.length) {
       const response = await fetch(endpoint("piggy-prices"), { method: "POST", headers: apiHeaders(), body: JSON.stringify({ holdings: state.holdings.map((row) => ({ id: row.id, name: row.p?.名稱, symbol: row.p?.代號, market: row.p?.市場, currency: row.p?.計價幣別, last_price: row.p?.最新價 })) }) });
-      if (response.ok) { const payload = await response.json(); for (const quote of payload.quotes || []) { const holding = state.holdings.find((row) => row.id === quote.id); if (holding && quote.price) await saveRecord("holdings", { 最新價: number(quote.price), 價格更新時間: quote.updated_at || nowISO(), 報價來源: quote.source || "自動報價" }, holding); } }
+      if (response.ok) { const payload = await response.json(); for (const quote of payload.quotes || []) { const holding = state.holdings.find((row) => row.id === quote.id); if (holding && quote.price) await saveRecord("holdings", { 最新價: roundedNumber(quote.price, 8), 價格更新時間: quote.updated_at || nowISO(), 報價來源: quote.source || "自動報價" }, holding); } }
     }
     await loadState(); await saveTodaySnapshot(); await loadState(); render(); toast("匯率與可用報價已更新");
   } catch (error) { toast(`報價更新暫停：${error.message}`); }
@@ -590,7 +594,9 @@ async function init() {
   try {
     state.db = await openDatabase(); await loadState(); bindEvents(); render(); switchView("overview");
     await generateRecurringTransactions(); await saveTodaySnapshot(); await loadState(); render();
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+    const isNativeApp = Boolean(window.Capacitor?.isNativePlatform?.());
+    document.documentElement.classList.toggle("is-native", isNativeApp);
+    if (!isNativeApp && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
     if (navigator.onLine && state.settings.token) void synchronize(false);
     const fxAge = Date.now() - Date.parse(state.settings.fxUpdatedAt || "1970-01-01");
     if (navigator.onLine && fxAge > 12 * 3600 * 1000) void refreshPrices();

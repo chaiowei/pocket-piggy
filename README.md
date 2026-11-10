@@ -1,6 +1,6 @@
 # 小豬帳本
 
-離線優先的多幣別記帳與資產總覽 PWA。純 HTML／CSS／JavaScript，不使用框架。
+離線優先的多幣別記帳與資產總覽。網頁版為 PWA；Android 版以 Capacitor 封裝成可獨立安裝的 APK。
 
 ## P1～P3 功能
 
@@ -33,13 +33,15 @@ n8n 基於安全不會顯示已儲存的舊值；忘記時直接換新值即可�
 
 - TWD／THB／USD／JPY：ExchangeRate-API 開放匯率，每日資料。
 - 台股：TWSE OpenAPI `STOCK_DAY_ALL`。
-- 加密貨幣：CoinGecko Simple Price；公開額度不足時需 Demo API Key。
+- 加密貨幣：CoinGecko Simple Price；BTC／XBT／WBTC、ETH、SOL、USDT、USDC、USDD、DAI、BNB、XRP、DOGE、ADA 已有代號對照，單次批次抓取以降低額度消耗；公開額度不足時需 Demo API Key。
 - 美股：已保留 Finnhub 接口，需設定 API Key。
 - 泰國基金：已保留 Thai SEC 接口，需 Subscription Key 與基金 project id。
 
 ## 安全
 
 程式碼不包含連線碼、Notion token 或任何報價 API 金鑰。連線碼只由使用者在設定頁輸入，並存在該裝置的 IndexedDB。
+
+所有送往 Notion 的数字最多保留 8 位小数；每日汇率在 App 端先四舍五入到 6 位小数，避免浮点尾数过长导致储存失败。
 
 ## 本機執行
 
@@ -48,3 +50,18 @@ python -m http.server 4173
 ```
 
 開啟 `http://127.0.0.1:4173/`。沒有連線碼時仍可完整測試離線記帳與待送清單。
+
+## Android APK
+
+套件 ID：`tw.chiaowei.pocketpiggy`，目前版本：`2.1.0`（versionCode `20100`）。
+
+```powershell
+npm install
+npm run android:add      # 第一次建立 android/ 時执行
+npx capacitor-assets generate --android
+$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
+$env:ANDROID_HOME='C:\Users\chiaowei\AppData\Local\Android\Sdk'
+npm run android:apk
+```
+
+APK 输出：`android/app/build/outputs/apk/debug/app-debug.apk`。这是供个人实机测试的 debug 签名 APK；若要上架 Google Play，需另建正式 release keystore 与 AAB。
