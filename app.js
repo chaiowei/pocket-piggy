@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.0.0-p3";
+const APP_VERSION = "2.0.1-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -592,6 +592,8 @@ async function init() {
     await generateRecurringTransactions(); await saveTodaySnapshot(); await loadState(); render();
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
     if (navigator.onLine && state.settings.token) void synchronize(false);
+    const fxAge = Date.now() - Date.parse(state.settings.fxUpdatedAt || "1970-01-01");
+    if (navigator.onLine && fxAge > 12 * 3600 * 1000) void refreshPrices();
     setInterval(() => { if (!document.hidden) void synchronize(false); }, 5 * 60 * 1000);
   } catch (error) { console.error(error); document.body.innerHTML = `<main style="margin:2rem"><h1>小豬帳本暫時打不開</h1><p>${esc(error.message)}</p></main>`; }
 }
