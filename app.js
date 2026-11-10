@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "1.0.0-p1";
+const APP_VERSION = "2.0.0-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -145,7 +145,7 @@ async function queueOperation(op) {
   await loadState();
 }
 async function saveRecord(table, data, existing = null) {
-  const syncId = existing ? syncIdFor(existing) : uuid();
+  const syncId = existing ? syncIdFor(existing) : data.同步編號 || uuid();
   const id = existing?.id || `local-${syncId}`;
   const p = { ...(existing?.p || {}), ...data };
   if (table !== "snapshots") p.同步編號 = p.同步編號 || syncId;
@@ -288,7 +288,7 @@ function switchView(view) {
   state.view = view;
   $$('[data-view]').forEach((el) => el.classList.toggle("active", el.dataset.view === view));
   $$('[data-nav]').forEach((el) => el.classList.toggle("active", el.dataset.nav === view));
-  $("#page-title").textContent = ({ overview: "總覽", accounts: "帳戶", investments: "投資", more: "固定支出與設定" })[view];
+  $("#page-title").textContent = ({ overview: "總覽", accounts: "帳戶", investments: "投資", guide: "記帳說明", more: "固定支出與設定" })[view];
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -325,6 +325,19 @@ function renderOverview() {
   const list = $("#recent-transactions");
   list.classList.toggle("empty-state", !recent.length);
   list.innerHTML = recent.length ? recent.map(transactionRow).join("") : "還沒有交易，記下第一筆吧！";
+  renderTrend(t.net);
+}
+function renderTrend(currentNet) {
+  const byDate = new Map(state.snapshots.map((row) => [row.p?.日期 || row.p?.快照日, number(row.p?.淨資產TWD ?? row.p?.淨資產)]).filter(([date]) => date));
+  byDate.set(todayISO(), currentNet);
+  const rows = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-30);
+  const el = $("#net-worth-trend"); if (!el) return;
+  if (rows.length < 2) { el.classList.add("empty-state"); el.textContent = "累積兩天快照後顯示"; return; }
+  el.classList.remove("empty-state");
+  const values = rows.map(([, value]) => value); const min = Math.min(...values); const max = Math.max(...values); const spread = Math.max(1, max - min);
+  const points = rows.map(([, value], i) => `${20 + i * 760 / Math.max(1, rows.length - 1)},${185 - (value - min) / spread * 155}`).join(" ");
+  const last = points.split(" ").at(-1).split(",");
+  el.innerHTML = `<svg viewBox="0 0 800 210" role="img" aria-label="淨資產趨勢"><defs><linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f38ba0" stop-opacity=".3"/><stop offset="1" stop-color="#f38ba0" stop-opacity="0"/></linearGradient></defs><line class="trend-grid" x1="20" y1="30" x2="780" y2="30"/><line class="trend-grid" x1="20" y1="185" x2="780" y2="185"/><polygon class="trend-area" points="20,195 ${points} 780,195"/><polyline class="trend-line" points="${points}"/><circle class="trend-dot" cx="${last[0]}" cy="${last[1]}" r="6"/></svg><div class="trend-labels"><span>${esc(rows[0][0])}</span><strong>${moneyTWD(values.at(-1))}</strong><span>${esc(rows.at(-1)[0])}</span></div>`;
 }
 function renderDonut(entries) {
   const total = entries.reduce((sum, [, value]) => sum + value, 0);
@@ -346,12 +359,12 @@ function transactionRow(row) {
 function renderAccounts() {
   const groups = new Map(); state.accounts.filter((x) => x.p?.啟用 !== false).forEach((row) => { const type = row.p?.類型 || "其他"; if (!groups.has(type)) groups.set(type, []); groups.get(type).push(row); });
   const el = $("#account-groups"); el.classList.toggle("empty-state", !state.accounts.length);
-  el.innerHTML = groups.size ? [...groups.entries()].map(([type, rows]) => `<section><h2 class="group-title">${esc(type)}</h2><div class="group-card">${rows.map((row) => `<div class="account-row" data-edit="account" data-id="${esc(row.id)}"><div class="item-main"><span class="item-icon">${iconFor(type)}</span><div><div class="account-name">${esc(row.p?.名稱 || "未命名")}${row.pending ? '<span class="pending-badge">待送</span>' : ""}</div><div class="item-meta">${esc(row.p?.幣別 || "TWD")}</div></div></div><div class="account-balance">${moneyTWD(accountTWD(row))}<div class="item-meta">${currencySymbol(row.p?.幣別 || "TWD")}${new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 }).format(accountBalance(row))}</div></div></div>`).join("")}</div></section>`).join("") : "尚無帳戶";
+  el.innerHTML = groups.size ? [...groups.entries()].map(([type, rows]) => `<section><h2 class="group-title">${esc(type)}</h2><div class="group-card">${rows.map((row) => `<div class="account-row" data-edit="account" data-id="${esc(row.id)}"><div class="item-main"><span class="item-icon">${iconFor(type)}</span><div><div class="account-name">${esc(row.p?.名稱 || "未命名")}${row.pending ? '<span class="pending-badge">待送</span>' : ""}</div><div class="item-meta">${esc(row.p?.幣別 || "TWD")}${type === "信用卡" ? ` · 結帳 ${esc(row.p?.結帳日 || "－")} 日／繳款 ${esc(row.p?.繳款日 || "－")} 日` : ""}</div></div></div><div class="account-balance">${moneyTWD(accountTWD(row))}<div class="item-meta">${currencySymbol(row.p?.幣別 || "TWD")}${new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 }).format(accountBalance(row))}</div>${type === "信用卡" ? `<div class="account-actions"><button type="button" class="secondary" data-card-action="reconcile" data-id="${esc(row.id)}">對帳</button><button type="button" data-card-action="pay" data-id="${esc(row.id)}">繳卡費</button></div>` : ""}</div></div>`).join("")}</div></section>`).join("") : "尚無帳戶";
 }
 function renderHoldings() {
   const total = state.holdings.reduce((sum, row) => sum + holdingTWD(row), 0); $("#holding-total").textContent = `總現值 ${moneyTWD(total)}`;
   const el = $("#holding-list"); el.classList.toggle("empty-state", !state.holdings.length);
-  el.innerHTML = state.holdings.length ? state.holdings.map((row) => `<article class="holding-card" data-edit="holding" data-id="${esc(row.id)}"><header><div><h3>${esc(row.p?.名稱 || "未命名")}</h3><span class="item-meta">${esc(row.p?.代號 || row.p?.市場 || "")}</span></div><span>${row.pending ? '<span class="pending-badge">待送</span>' : "📈"}</span></header><div class="price">${moneyTWD(holdingTWD(row))}</div><div class="item-meta">${number(row.p?.數量).toLocaleString()} × ${currencySymbol(row.p?.計價幣別 || "TWD")}${number(row.p?.最新價 ?? row.p?.平均成本).toLocaleString()}</div></article>`).join("") : "尚無持倉";
+  el.innerHTML = state.holdings.length ? state.holdings.map((row) => `<article class="holding-card" data-edit="holding" data-id="${esc(row.id)}"><header><div><h3>${esc(row.p?.名稱 || "未命名")}</h3><span class="item-meta">${esc(row.p?.代號 || row.p?.市場 || "")}</span></div><span>${row.pending ? '<span class="pending-badge">待送</span>' : "📈"}</span></header><div class="price">${moneyTWD(holdingTWD(row))}</div><div class="item-meta">${number(row.p?.數量).toLocaleString()} × ${currencySymbol(row.p?.計價幣別 || "TWD")}${number(row.p?.最新價 ?? row.p?.平均成本).toLocaleString()}</div><div class="price-meta"><span class="${row.p?.報價來源 ? "price-ok" : "price-warn"}">${esc(row.p?.報價來源 || "手動價格")}</span><span class="item-meta">${esc(String(row.p?.價格更新時間 || "尚未更新").slice(0, 16).replace("T", " "))}</span></div></article>`).join("") : "尚無持倉";
 }
 function monthlyEquivalent(p) { const amount = toTWD(p.金額, p.幣別); return p.週期 === "年" ? amount / 12 : p.週期 === "季" ? amount / 3 : p.週期 === "週" ? amount * 52 / 12 : amount; }
 function renderRecurring() {
@@ -375,17 +388,19 @@ const holdingFields = [field("名稱", "名稱"), field("代號", "代號"), fie
 const recurringFields = [field("名稱", "名稱"), field("群組", "群組"), field("週期", "週期", "select", { choices: ["週", "月", "季", "年"] }), field("金額", "金額", "number"), field("幣別", "幣別", "select", { choices: ["TWD", "THB", "USD", "JPY"] }), field("性質", "性質", "select", { choices: ["支出", "轉入資產"] }), field("扣款日", "扣款日", "number"), field("扣款月份", "扣款月份", "number"), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts" }), field("下次扣款", "下次扣款", "date"), field("對應持倉", "對應持倉", "relation", { source: "holdings" }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
 const transactionFields = [field("收支", "類型", "hidden"), field("店家／項目", "店家／項目"), field("日期", "日期", "date"), field("原幣金額", "金額", "number"), field("幣別", "幣別", "select", { choices: ["TWD", "THB", "USD", "JPY"] }), field("帳戶", "帳戶", "relation", { source: "accounts" }), field("分類", "分類", "select", { choices: ["餐飲", "交通", "購物", "居住", "娛樂", "醫療", "旅遊", "薪資", "投資", "保險", "其他"] }), field("狀態", "狀態", "select", { choices: ["預估", "已入帳", "已出帳", "已繳款"] }), field("轉入帳戶", "轉入帳戶", "relation", { source: "accounts", types: ["轉帳"] }), field("實扣金額", "實扣金額", "number", { types: ["轉帳", "支出"] }), field("持倉", "持倉", "relation", { source: "holdings", types: ["投資買入", "投資賣出"] }), field("成交數量", "成交數量", "number", { types: ["投資買入", "投資賣出"] }), field("成交單價", "成交單價", "number", { types: ["投資買入", "投資賣出"] }), field("手續費", "手續費", "number", { types: ["投資買入", "投資賣出"] }), field("定期定額", "定期定額", "checkbox", { types: ["投資買入"] }), field("備註", "備註", "textarea", { wide: true })];
 
-function openEditor(kind, record = null) {
-  state.editor = { kind, record, transactionType: record?.p?.收支 || "支出" };
+function openEditor(kind, record = null, draft = {}) {
+  state.editor = { kind, record, draft, transactionType: draft.收支 || record?.p?.收支 || "支出", receiptStatus: "" };
   $("#editor-title").textContent = `${record ? "編輯" : "新增"}${({ account: "帳戶", holding: "持倉", recurring: "固定支出", transaction: "交易" })[kind]}`;
   $("#delete-button").classList.toggle("hidden", !record);
+  $("#receipt-button").classList.toggle("hidden", kind !== "transaction");
   renderEditorFields(); $("#editor-dialog").showModal();
 }
 function renderEditorFields() {
-  const { kind, record, transactionType } = state.editor; const data = record?.p || {};
+  const { kind, record, transactionType } = state.editor; const data = { ...(record?.p || {}), ...(state.editor.draft || {}) };
   const fields = kind === "account" ? accountFields : kind === "holding" ? holdingFields : kind === "recurring" ? recurringFields : transactionFields;
   const tabs = kind === "transaction" ? `<div class="type-tabs">${["支出", "收入", "轉帳", "投資買入", "投資賣出"].map((type) => `<button type="button" data-transaction-type="${type}" class="${type === transactionType ? "active" : ""}">${type}</button>`).join("")}</div>` : "";
-  $("#editor-fields").innerHTML = tabs + fields.filter((f) => f.type !== "hidden" && (!f.types || f.types.includes(transactionType))).map((f) => renderField(f, data[f.name])).join("") + (kind === "transaction" ? `<input type="hidden" name="收支" value="${esc(transactionType)}">` : "");
+  const receipt = kind === "transaction" ? `<div class="receipt-tools"><strong>📷 收據 AI 辨識</strong>　拍照後只會先填表，不會自動儲存；請確認金額與帳戶。${state.editor.receiptStatus ? `<br>${esc(state.editor.receiptStatus)}` : ""}</div>` : "";
+  $("#editor-fields").innerHTML = tabs + receipt + fields.filter((f) => f.type !== "hidden" && (!f.types || f.types.includes(transactionType))).map((f) => renderField(f, data[f.name])).join("") + (kind === "transaction" ? `<input type="hidden" name="收支" value="${esc(transactionType)}">` : "");
 }
 function renderField(f, value) {
   const className = `${f.wide ? "wide " : ""}${f.type === "checkbox" ? "check" : ""}`;
@@ -433,6 +448,86 @@ async function updateHoldingFromTrade(data, previousTransaction) {
   await saveRecord("holdings", { 數量: nextQty, 平均成本: nextAvg }, holding);
 }
 
+function readFileAsDataURL(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); }); }
+async function resizeReceipt(file) {
+  const src = await readFileAsDataURL(file); const image = new Image();
+  await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = src; });
+  const scale = Math.min(1, 1280 / Math.max(image.width, image.height)); const canvas = document.createElement("canvas");
+  canvas.width = Math.round(image.width * scale); canvas.height = Math.round(image.height * scale);
+  canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL("image/jpeg", .82); return { mime_type: "image/jpeg", image_base64: dataUrl.split(",")[1] };
+}
+async function analyzeReceipt(file) {
+  if (!file || !state.editor || state.editor.kind !== "transaction") return;
+  if (!state.settings.token) { toast("收據辨識需要先在「更多」輸入連線碼"); return; }
+  try {
+    state.editor.receiptStatus = "正在縮圖並辨識…"; renderEditorFields();
+    const image = await resizeReceipt(file); const response = await fetch(endpoint("piggy-receipt"), { method: "POST", headers: apiHeaders(), body: JSON.stringify(image) });
+    if (!response.ok) throw new Error(`辨識服務回應 ${response.status}`); const payload = await response.json(); if (!payload.ok) throw new Error(payload.error || "辨識失敗");
+    const found = payload.data || payload.result || {}; const allowed = ["店家／項目", "日期", "原幣金額", "幣別", "分類", "備註", "狀態"];
+    const current = collectEditorData(); state.editor.draft = { ...state.editor.draft, ...current, ...Object.fromEntries(allowed.filter((key) => found[key] !== undefined && found[key] !== null).map((key) => [key, found[key]])) };
+    state.editor.receiptStatus = `辨識完成${found.confidence ? `（信心 ${Math.round(number(found.confidence) * 100)}%）` : ""}，請核對後再儲存。`; renderEditorFields();
+  } catch (error) { state.editor.receiptStatus = `辨識失敗：${error.message}`; renderEditorFields(); }
+  finally { $("#receipt-input").value = ""; }
+}
+
+function openCardDialog(card) {
+  const rows = state.transactions.filter((row) => hasRelation(row.p?.帳戶, card.id) && row.p?.收支 === "支出").sort((a, b) => String(b.p?.日期 || "").localeCompare(String(a.p?.日期 || ""))).slice(0, 60);
+  $("#card-title").textContent = `${card.p?.名稱 || "信用卡"}對帳`;
+  $("#card-content").innerHTML = `<p>銀行入帳後，直接改原交易的實扣金額；系統不會新增第二筆支出。</p>${rows.length ? rows.map((row) => `<div class="reconcile-row"><div><strong>${esc(row.p?.["店家／項目"] || "信用卡消費")}</strong><div class="item-meta">${esc(row.p?.日期 || "")} · ${esc(row.p?.狀態 || "預估")} · 原幣 ${currencySymbol(row.p?.幣別 || "TWD")}${number(row.p?.原幣金額).toLocaleString()}</div></div><label>實扣金額<input data-card-actual="${esc(row.id)}" type="number" step="any" value="${esc(row.p?.實扣金額 ?? "")}" placeholder="銀行入帳金額"></label><button type="button" data-reconcile-save="${esc(row.id)}">確認入帳</button></div>`).join("") : '<div class="empty-state">目前沒有這張卡的消費</div>'}`;
+  $("#card-dialog").showModal();
+}
+async function reconcileTransaction(id) {
+  const row = state.transactions.find((item) => item.id === id); const input = $(`[data-card-actual="${CSS.escape(id)}"]`); if (!row || !input || input.value === "") return toast("請填銀行實際入帳金額");
+  const card = state.accounts.find((item) => hasRelation(row.p?.帳戶, item.id)); const actual = number(input.value);
+  await saveRecord("transactions", { 實扣金額: actual, 台幣金額: toTWD(actual, card?.p?.幣別 || "TWD"), 狀態: "已入帳" }, row);
+  openCardDialog(card); toast("已更新原交易，不會重複計算");
+}
+function openCardPayment(card) {
+  const amount = Math.max(0, Math.abs(accountBalance(card)));
+  openEditor("transaction", null, { 收支: "轉帳", "店家／項目": `繳${card.p?.名稱 || "信用卡"}卡費`, 日期: todayISO(), 原幣金額: amount, 幣別: card.p?.幣別 || "TWD", 轉入帳戶: [card.id], 狀態: "已繳款", 備註: "信用卡繳款是轉帳，不重複列支出" });
+}
+
+function addPeriod(dateText, period) {
+  const d = new Date(`${dateText}T12:00:00`); if (period === "週") d.setDate(d.getDate() + 7); else if (period === "季") d.setMonth(d.getMonth() + 3); else if (period === "年") d.setFullYear(d.getFullYear() + 1); else d.setMonth(d.getMonth() + 1); return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" });
+}
+async function generateRecurringTransactions() {
+  const today = todayISO(); let created = 0;
+  for (const rule of state.recurring.filter((row) => row.p?.啟用 !== false && row.p?.下次扣款 && row.p.下次扣款 <= today)) {
+    let due = rule.p.下次扣款; let guard = 0;
+    while (due <= today && guard++ < 24) {
+      const syncId = `recurring-${syncIdFor(rule)}-${due}`; const exists = state.transactions.some((row) => row.p?.同步編號 === syncId || (row.p?.日期 === due && hasRelation(row.p?.固定支出, rule.id)));
+      if (!exists) {
+        const holding = state.holdings.find((row) => hasRelation(rule.p?.對應持倉, row.id)); const target = asArray(holding?.p?.帳戶);
+        const isAsset = rule.p?.性質 === "轉入資產" && target.length;
+        await saveRecord("transactions", { 同步編號: syncId, 收支: isAsset ? "轉帳" : "支出", "店家／項目": rule.p?.名稱 || "固定支出", 日期: due, 原幣金額: number(rule.p?.金額), 幣別: rule.p?.幣別 || "TWD", 帳戶: asArray(rule.p?.扣款帳戶), 轉入帳戶: isAsset ? target : [], 固定支出: [rule.id], 分類: rule.p?.群組 || (isAsset ? "投資" : "其他"), 狀態: "已入帳", 備註: `${rule.p?.週期 || "月"}期自動產生` }); created += 1;
+      }
+      due = addPeriod(due, rule.p?.週期 || "月");
+    }
+    if (due !== rule.p.下次扣款) await saveRecord("recurring", { 下次扣款: due }, rule);
+  }
+  if (created) toast(`已自動產生 ${created} 筆到期固定支出`);
+}
+
+async function saveTodaySnapshot() {
+  const t = totals(); const date = todayISO(); const existing = state.snapshots.find((row) => (row.p?.日期 || row.p?.快照日) === date);
+  const values = { 日期: date, 快照日: date, 淨資產TWD: Math.round(t.net), 投資TWD: Math.round(t.investments), USD匯率: rate("USD"), THB匯率: rate("THB"), JPY匯率: rate("JPY"), 抓價狀態: "App 本機快照" };
+  await putOne("snapshots", { id: existing?.id || `snapshot-${date}`, edited: existing?.edited || null, p: values });
+}
+async function refreshPrices() {
+  if (!navigator.onLine) return toast("目前離線，保留上次匯率與價格");
+  try {
+    toast("正在更新匯率與報價…");
+    const fx = await fetch("https://open.er-api.com/v6/latest/TWD").then((response) => { if (!response.ok) throw new Error("匯率服務暫時無法使用"); return response.json(); });
+    if (fx?.rates) { state.settings = { ...state.settings, rateTHB: 1 / number(fx.rates.THB), rateUSD: 1 / number(fx.rates.USD), rateJPY: 1 / number(fx.rates.JPY), fxUpdatedAt: fx.time_last_update_utc || nowISO() }; await putOne("meta", state.settings); }
+    if (state.settings.token && state.holdings.length) {
+      const response = await fetch(endpoint("piggy-prices"), { method: "POST", headers: apiHeaders(), body: JSON.stringify({ holdings: state.holdings.map((row) => ({ id: row.id, name: row.p?.名稱, symbol: row.p?.代號, market: row.p?.市場, currency: row.p?.計價幣別, last_price: row.p?.最新價 })) }) });
+      if (response.ok) { const payload = await response.json(); for (const quote of payload.quotes || []) { const holding = state.holdings.find((row) => row.id === quote.id); if (holding && quote.price) await saveRecord("holdings", { 最新價: number(quote.price), 價格更新時間: quote.updated_at || nowISO(), 報價來源: quote.source || "自動報價" }, holding); } }
+    }
+    await loadState(); await saveTodaySnapshot(); await loadState(); render(); toast("匯率與可用報價已更新");
+  } catch (error) { toast(`報價更新暫停：${error.message}`); }
+}
+
 function openWizard() { state.wizardStep = 0; state.wizardDate = state.accounts.find((a) => a.p?.開帳日)?.p?.開帳日 || todayISO(); renderWizard(); $("#wizard-dialog").showModal(); }
 function renderWizard() {
   const steps = 4; $("#wizard-progress").textContent = `${state.wizardStep + 1} / ${steps}`; $("#wizard-prev").disabled = state.wizardStep === 0; $("#wizard-next").textContent = state.wizardStep === 3 ? "完成" : "下一步";
@@ -466,8 +561,12 @@ function bindEvents() {
     else if (action === "sync") await synchronize(false);
     else if (action === "full-sync") await synchronize(true);
     else if (action === "retry") await pushOutbox();
+    else if (action === "prices") await refreshPrices();
+    const cardAction = event.target.closest("[data-card-action]");
+    if (cardAction) { const card = state.accounts.find((row) => row.id === cardAction.dataset.id); if (cardAction.dataset.cardAction === "reconcile") openCardDialog(card); else openCardPayment(card); return; }
+    const reconcile = event.target.closest("[data-reconcile-save]"); if (reconcile) { await reconcileTransaction(reconcile.dataset.reconcileSave); return; }
     const edit = event.target.closest("[data-edit]"); if (edit) openEditor(edit.dataset.edit, findRecord(edit.dataset.edit, edit.dataset.id));
-    const type = event.target.closest("[data-transaction-type]")?.dataset.transactionType; if (type && state.editor) { state.editor.transactionType = type; renderEditorFields(); }
+    const type = event.target.closest("[data-transaction-type]")?.dataset.transactionType; if (type && state.editor) { state.editor.draft = { ...state.editor.draft, ...collectEditorData(), 收支: type }; state.editor.transactionType = type; renderEditorFields(); }
   });
   $("#editor-dialog").addEventListener("close", async () => { if ($("#editor-dialog").returnValue === "save") await saveEditor(); });
   $("#delete-button").addEventListener("click", async () => {
@@ -480,6 +579,8 @@ function bindEvents() {
   });
   $("#wizard-prev").addEventListener("click", () => { if (state.wizardStep > 0) { state.wizardStep -= 1; renderWizard(); } });
   $("#wizard-next").addEventListener("click", wizardNext);
+  $("#receipt-button").addEventListener("click", () => $("#receipt-input").click());
+  $("#receipt-input").addEventListener("change", (event) => void analyzeReceipt(event.target.files?.[0]));
   window.addEventListener("online", () => { updateNetworkPill(); void pushOutbox(); });
   window.addEventListener("offline", updateNetworkPill);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) void synchronize(false); });
@@ -488,6 +589,7 @@ function bindEvents() {
 async function init() {
   try {
     state.db = await openDatabase(); await loadState(); bindEvents(); render(); switchView("overview");
+    await generateRecurringTransactions(); await saveTodaySnapshot(); await loadState(); render();
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
     if (navigator.onLine && state.settings.token) void synchronize(false);
     setInterval(() => { if (!document.hidden) void synchronize(false); }, 5 * 60 * 1000);

@@ -20,6 +20,7 @@
       <button data-nav="accounts" class="nav-item"><span>👛</span>帳戶</button>
       <button data-action="transaction" class="nav-item nav-add"><span>＋</span>記一筆</button>
       <button data-nav="investments" class="nav-item"><span>📈</span>投資</button>
+      <button data-nav="guide" class="nav-item"><span>📖</span>記帳說明</button>
       <button data-nav="more" class="nav-item"><span>☰</span>更多</button>
     </aside>
 
@@ -64,6 +65,10 @@
             <div class="card-heading"><h2>本月支出分類</h2><span id="expense-total-label"></span></div>
             <div id="expense-bars" class="bar-chart empty-state">還沒有本月支出</div>
           </article>
+          <article class="card chart-card trend-card">
+            <div class="card-heading"><h2>淨資產趨勢</h2><span id="trend-period">最近 30 筆</span></div>
+            <div id="net-worth-trend" class="trend-chart empty-state">累積每日快照後顯示</div>
+          </article>
         </div>
         <article class="card">
           <div class="card-heading"><h2>最近交易</h2><button class="text-button" data-action="transaction">＋ 新增</button></div>
@@ -80,12 +85,16 @@
       </section>
 
       <section data-view="investments" class="view">
-        <div class="section-actions"><span id="holding-total" class="section-total">總現值 NT$0</span><button data-action="holding">＋ 新增持倉</button></div>
+        <div class="section-actions"><span id="holding-total" class="section-total">總現值 NT$0</span><div class="button-row"><button class="secondary" data-action="prices">↻ 更新報價</button><button data-action="holding">＋ 新增持倉</button></div></div>
         <div id="holding-list" class="card-grid empty-state">尚無持倉</div>
       </section>
 
       <section data-view="more" class="view">
         <div class="more-grid">
+          <article class="card guide-entry">
+            <div><span class="item-icon">📖</span><h2>不知道這筆怎麼記？</h2><p>保險、信用卡、投資、外幣與轉帳都有範例，避免重複計算。</p></div>
+            <button data-nav="guide">打開記帳說明</button>
+          </article>
           <article class="card">
             <div class="card-heading"><h2>固定支出</h2><button class="text-button" data-action="recurring">＋ 新增</button></div>
             <p class="summary-line">月均合計 <strong id="monthly-recurring">NT$0</strong></p>
@@ -102,13 +111,45 @@
                 <label>USD<input name="rateUSD" type="number" min="0" step="0.0001"></label>
                 <label>JPY<input name="rateJPY" type="number" min="0" step="0.0001"></label>
               </fieldset>
-              <div class="button-row"><button type="submit">儲存設定</button><button type="button" class="secondary" data-action="full-sync">完整重新同步</button></div>
+              <div class="button-row"><button type="submit">儲存設定</button><button type="button" class="secondary" data-action="full-sync">完整重新同步</button><button type="button" class="secondary" data-action="prices">更新匯率與報價</button></div>
+              <p class="source-note">匯率由 <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener">ExchangeRate-API</a> 提供；報價會保留來源與更新時間。</p>
             </form>
           </article>
           <article class="card queue-card">
             <div class="card-heading"><h2>待送／失敗清單</h2><button class="text-button" data-action="retry">重試</button></div>
             <div id="queue-list" class="list empty-state">目前沒有待送資料</div>
           </article>
+        </div>
+      </section>
+
+      <section data-view="guide" class="view guide-view">
+        <article class="guide-hero">
+          <div><p class="eyebrow">不重複計算的核心</p><h2>一個經濟事件，只記一次</h2><p>刷卡當天記支出；繳卡費只是把銀行的錢移去還卡債。買投資是資產轉換，不是生活支出。</p></div>
+          <span aria-hidden="true">🐷📚</span>
+        </article>
+        <div class="guide-grid">
+          <article class="guide-card wide"><h2>快速判斷表</h2><div class="guide-table-wrap"><table><thead><tr><th>發生的事</th><th>怎麼記</th><th>會不會算支出</th></tr></thead><tbody>
+            <tr><td>現金／銀行買東西</td><td>支出，帳戶選付款帳戶</td><td><strong>會</strong></td></tr>
+            <tr><td>信用卡刷卡</td><td>刷卡日記支出，帳戶選該信用卡</td><td><strong>會，只算這次</strong></td></tr>
+            <tr><td>信用卡繳款</td><td>轉帳：銀行 → 信用卡</td><td>不會</td></tr>
+            <tr><td>銀行互轉／換匯</td><td>轉帳，必要時填實扣金額</td><td>不會</td></tr>
+            <tr><td>買股票、基金、加密貨幣</td><td>投資買入並選持倉</td><td>不會</td></tr>
+            <tr><td>配息／利息</td><td>收入</td><td>不會</td></tr>
+          </tbody></table></div></article>
+
+          <article class="guide-card wide"><span class="guide-number">1</span><h2>信用卡：刷卡、結帳、繳款</h2>
+            <ol class="step-flow"><li><strong>消費日</strong><span>記一筆「支出」，帳戶選信用卡。這一天才是實際消費日。</span></li><li><strong>銀行入帳</strong><span>直接修改同一筆交易的「實扣金額」與狀態，不新增第二筆。</span></li><li><strong>結帳日</strong><span>只代表銀行彙整帳單，不需要新增支出。</span></li><li><strong>繳款日</strong><span>按信用卡旁的「繳卡費」，建立銀行 → 信用卡的轉帳，不再算支出。</span></li></ol>
+            <div class="guide-callout"><strong>外幣刷卡</strong>　刷卡時先用匯率加 1.5% 做「預估」；銀行入帳後，把同一筆改成實際扣款與「已入帳」。</div>
+            <p><strong>退款：</strong>尚未入帳的取消可把原交易改為 0 或刪除；已入帳退款則在同一張卡記一筆收入，備註原消費。</p>
+          </article>
+
+          <article class="guide-card"><span class="guide-number">2</span><h2>純保障型保險</h2><p>定期壽險、醫療險、意外險、產險的保費主要是買保障：</p><ul><li>付款時記「支出」，分類選保險。</li><li>保險帳戶的「計入資產」選否。</li><li>不要把累積保費當成資產。</li></ul></article>
+          <article class="guide-card"><span class="guide-number">3</span><h2>有保單價值的保險</h2><p>終身壽險、儲蓄險、投資型保單若有可查詢的解約金：</p><ul><li>建立保險帳戶，「計入資產」選是。</li><li>繳費用轉帳：銀行 → 保險帳戶，不算生活支出。</li><li>資產只填<strong>目前解約金／保單價值</strong>，不是已繳保費總額。</li><li>每季或每年更新保單價值；差額會自然反映真實成本。</li></ul></article>
+
+          <article class="guide-card"><span class="guide-number">4</span><h2>投資與定期定額</h2><ul><li>買進用「投資買入」，現金減少、持倉增加，不算支出。</li><li>賣出用「投資賣出」，持倉減少、現金增加。</li><li>股息、配息、利息用「收入」。</li><li>手續費放在交易的手續費欄位。</li><li>定期定額可設為固定支出，但性質要選「轉入資產」。</li></ul></article>
+          <article class="guide-card"><span class="guide-number">5</span><h2>開帳與多幣別</h2><ul><li>開帳日以前不用補登；直接填當天實際餘額。</li><li>信用卡期初餘額填「負的未繳總額」。</li><li>外幣帳戶保留原幣，總覽再依匯率換算台幣。</li><li>換匯用轉帳：來源填賣出的幣別金額，實扣填轉入帳戶實收。</li></ul></article>
+
+          <article class="guide-card wide danger-guide"><h2>最常見的重複計算</h2><div class="mistake-grid"><div><strong>✕ 刷卡記支出，繳款又記支出</strong><span>正確：繳款記轉帳。</span></div><div><strong>✕ 買股票記支出，又把持倉算資產</strong><span>正確：買進記投資買入。</span></div><div><strong>✕ 儲蓄險把總保費當保單價值</strong><span>正確：只用當下解約金。</span></div><div><strong>✕ 入帳時再新增一筆刷卡紀錄</strong><span>正確：修改原交易。</span></div></div></article>
         </div>
       </section>
     </main>
@@ -122,7 +163,8 @@
     </nav>
   </div>
 
-  <dialog id="editor-dialog"><form method="dialog" id="editor-form"><header><h2 id="editor-title">新增</h2><button value="cancel" aria-label="關閉">×</button></header><div id="editor-fields" class="form-grid"></div><footer><button value="cancel" class="secondary">取消</button><button id="delete-button" type="button" class="danger hidden">刪除</button><button value="save" id="save-button">儲存</button></footer></form></dialog>
+  <dialog id="editor-dialog"><form method="dialog" id="editor-form"><header><h2 id="editor-title">新增</h2><button value="cancel" aria-label="關閉">×</button></header><div id="editor-fields" class="form-grid"></div><footer><button value="cancel" class="secondary">取消</button><button id="receipt-button" type="button" class="secondary hidden">📷 收據辨識</button><input id="receipt-input" type="file" accept="image/*" capture="environment" hidden><button id="delete-button" type="button" class="danger hidden">刪除</button><button value="save" id="save-button">儲存</button></footer></form></dialog>
+  <dialog id="card-dialog"><form method="dialog"><header><h2 id="card-title">信用卡對帳</h2><button value="cancel" aria-label="關閉">×</button></header><div id="card-content" class="dialog-content"></div><footer><button value="cancel" class="secondary">關閉</button></footer></form></dialog>
   <dialog id="wizard-dialog"><form method="dialog" id="wizard-form"><header><div><p class="eyebrow">第一次使用</p><h2>開帳精靈</h2></div><button value="cancel" aria-label="關閉">×</button></header><div id="wizard-content"></div><footer><button type="button" class="secondary" id="wizard-prev">上一步</button><span id="wizard-progress"></span><button type="button" id="wizard-next">下一步</button></footer></form></dialog>
   <div id="toast-region" aria-live="polite" aria-atomic="true"></div>
   <script src="app.js" defer></script>
