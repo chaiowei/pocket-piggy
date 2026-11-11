@@ -51,3 +51,7 @@ dialog{width:min(620px,calc(100% - 24px));max-height:92vh;border:0;border-radius
 .option-row small{margin-left:8px;color:var(--muted)}.option-row i{font-style:normal;color:var(--muted);font-size:.78rem}.option-row .danger{padding:.3rem .7rem;font-size:.78rem}
 .option-add{display:flex;gap:8px}.option-add input{flex:1;min-width:0;border:1px solid var(--border);border-radius:12px;padding:.6rem .8rem}.option-add select{border:1px solid var(--border);border-radius:12px;padding:.5rem}
 .options-box .dialog-content{overflow-x:hidden;max-height:58vh}
+
+.coin-picker input{display:block;width:100%;margin-top:8px;border:1px solid var(--border);border-radius:12px;padding:.6rem .8rem}
+.coin-results{display:grid;gap:6px;margin-top:8px}.coin-option{display:flex;align-items:center;gap:10px;text-align:left;padding:.55rem .75rem;border-radius:12px;border:1px solid var(--border);background:#fff;color:var(--ink)}
+.coin-option small{color:var(--muted)}.receipt-tools.warn{background:#fff3dc;color:#7a5a1a}.receipt-tools code{background:#fff;padding:1px 6px;border-radius:6px}

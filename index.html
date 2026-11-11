@@ -155,6 +155,16 @@
           <article class="guide-card"><span class="guide-number">6</span><h2>已經持有的股票／加密貨幣</h2><p>開始用小豬帳本以前就買好的標的，<strong>不用補記交易，也不是支出</strong>：</p><ul><li>先建「帳戶」：類型選台股／美股／加密貨幣（例如券商、交易所、冷錢包），期初餘額只填<strong>還沒投資的現金或穩定幣</strong>，沒有就填 0。</li><li>再到「投資 → 新增持倉」：每個標的一筆，填代號、市場、計價幣別、目前<strong>數量</strong>與<strong>平均成本</strong>（每單位買進均價），所屬帳戶選剛剛的帳戶。</li><li>之後再加碼才用「記一筆 → 投資買入」，賣出用「投資賣出」。</li><li>當成錢在用的幣（例如放著的 USDT）可以直接開一個幣別為 USDT 的帳戶；同一批幣不要同時記在帳戶餘額和持倉，否則會重複計算。</li></ul></article>
           <article class="guide-card"><span class="guide-number">7</span><h2>報價與報酬率怎麼算</h2><ul><li><strong>未實現損益</strong>＝數量 ×（最新價 − 平均成本）；<strong>報酬率</strong>＝未實現損益 ÷（數量 × 平均成本）。</li><li>加密貨幣：CoinGecko 即時價，代號填 BTC、ETH、SOL 這類通用代號即可。</li><li>台股：證交所 TWSE 每日收盤價，代號填股票代號（例如 2330）。</li><li>美股、泰國基金：需在 n8n 設定 Finnhub／Thai SEC 金鑰，否則請手動填最新價。</li><li>外幣換算台幣：ExchangeRate-API 每日匯率。</li><li>按「更新報價」或每 12 小時自動更新；持倉卡片下方會顯示報價來源與時間，顯示「手動價格」代表沒抓到。</li><li>平均成本不含手續費；已賣出的已實現損益與配息不計入報酬率。</li></ul></article>
 
+          <article class="guide-card wide"><h2>每一種資產要記在哪裡（開帳照這張表）</h2><div class="guide-table-wrap"><table><thead><tr><th>你有的東西</th><th>記在哪裡</th><th>怎麼填</th></tr></thead><tbody>
+            <tr><td data-label="你有的東西">銀行、現金、電子支付</td><td data-label="記在哪裡">帳戶</td><td data-label="怎麼填">期初餘額</td></tr>
+            <tr><td data-label="你有的東西">信用卡</td><td data-label="記在哪裡">帳戶</td><td data-label="怎麼填">期初餘額填目前未繳總額（負數）</td></tr>
+            <tr><td data-label="你有的東西">儲蓄險、終身壽險</td><td data-label="記在哪裡">帳戶（類型＝保險）</td><td data-label="怎麼填">選「計入資產」，填保單價值（解約金）</td></tr>
+            <tr><td data-label="你有的東西">定期壽險、醫療、意外、產險</td><td data-label="記在哪裡">帳戶（類型＝保險）</td><td data-label="怎麼填">選「不計入（純保障）」，保費記支出或固定支出</td></tr>
+            <tr><td data-label="你有的東西">股票、ETF、基金</td><td data-label="記在哪裡">投資 → 新增持倉</td><td data-label="怎麼填">填代號、數量、平均成本；現價自動抓</td></tr>
+            <tr><td data-label="你有的東西">BTC、ETH、BNB 等加密貨幣</td><td data-label="記在哪裡">投資 → 新增持倉</td><td data-label="怎麼填">用名稱搜尋選幣種，填數量與平均成本（USD）</td></tr>
+            <tr><td data-label="你有的東西">USDT、USDC 穩定幣</td><td data-label="記在哪裡">交易所帳戶</td><td data-label="怎麼填">帳戶幣別選 USDT／USDC，期初餘額填數量</td></tr>
+            <tr><td data-label="你有的東西">券商或交易所裡還沒投入的現金</td><td data-label="記在哪裡">帳戶</td><td data-label="怎麼填">期初餘額只填這筆現金</td></tr>
+            </tbody></table></div><p class="source-note">口訣：同一樣東西只記一個地方。BTC 放持倉就不要再當帳戶幣別記餘額，不然會算兩次。</p></article>
           <article class="guide-card wide danger-guide"><h2>最常見的重複計算</h2><div class="mistake-grid"><div><strong>✕ 刷卡記支出，繳款又記支出</strong><span>正確：繳款記轉帳。</span></div><div><strong>✕ 買股票記支出，又把持倉算資產</strong><span>正確：買進記投資買入。</span></div><div><strong>✕ 儲蓄險把總保費當保單價值</strong><span>正確：只用當下解約金。</span></div><div><strong>✕ 入帳時再新增一筆刷卡紀錄</strong><span>正確：修改原交易。</span></div><div><strong>✕ 已持有的幣或股票補記成支出</strong><span>正確：新增持倉，填數量與平均成本。</span></div><div><strong>✕ 同一批幣又填帳戶餘額又建持倉</strong><span>正確：擇一，要看報酬率就用持倉。</span></div></div></article>
         </div>
       </section>

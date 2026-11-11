@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.3.0-p3";
+const APP_VERSION = "2.4.0-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -50,7 +50,7 @@ const uuid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Ma
 function todayISO() { return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" }); }
 function nowISO() { return new Date().toISOString(); }
 function asArray(value) { return Array.isArray(value) ? value : value ? [value] : []; }
-function number(value) { const n = Number(value); return Number.isFinite(n) ? n : 0; }
+function number(value) { const n = Number(typeof value === "string" ? value.replace(/[,，\s]/g, "") : value); return Number.isFinite(n) ? n : 0; }
 function roundedNumber(value, digits = 8) {
   const n = Number(value);
   return Number.isFinite(n) ? Number(n.toFixed(digits)) : 0;
@@ -516,6 +516,40 @@ async function optionsDelete(value) {
   const { add, remove } = optionState(key);
   await saveOptionList(key, { add: add.filter((v) => v !== value), remove: OPTION_BASE[key].includes(value) ? [...new Set([...remove, value])] : remove }); toast(`已刪除「${value}」`);
 }
+let coinSearchTimer = null;
+async function searchCoins(query) {
+  const box = $("#coin-results"); if (!box) return;
+  const q = String(query || "").trim(); if (q.length < 2) { box.innerHTML = ""; return; }
+  if (!navigator.onLine) { box.innerHTML = '<div class="source-note">目前離線，無法搜尋。</div>'; return; }
+  box.innerHTML = '<div class="source-note">搜尋中…</div>';
+  try {
+    const found = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`).then((r) => { if (!r.ok) throw new Error(`CoinGecko 回應 ${r.status}`); return r.json(); });
+    const coins = (found?.coins || []).slice(0, 8);
+    box.innerHTML = coins.length ? coins.map((c) => `<button type="button" class="coin-option" data-coin-id="${esc(c.id)}" data-coin-name="${esc(c.name)}" data-coin-symbol="${esc(String(c.symbol || "").toUpperCase())}">${c.thumb ? `<img src="${esc(c.thumb)}" alt="" width="20" height="20">` : ""}<span><b>${esc(c.name)}</b> <small>${esc(String(c.symbol || "").toUpperCase())}${c.market_cap_rank ? ` · 市值第 ${esc(c.market_cap_rank)}` : ""}</small></span></button>`).join("") : '<div class="source-note">找不到，換個名稱或代號試試。</div>';
+  } catch (error) { box.innerHTML = `<div class="source-note">搜尋失敗：${esc(error.message)}</div>`; }
+}
+function pickCoin(button) {
+  const d = button.dataset; const draft = { ...state.editor.draft, ...collectEditorData() };
+  draft.代號 = `cg:${d.coinId}`; draft.名稱 = `${d.coinName} (${d.coinSymbol})`; draft.市場 = "加密貨幣"; if (!draft.計價幣別) draft.計價幣別 = "USD";
+  state.editor.draft = draft; renderEditorFields(); toast(`已選擇 ${d.coinName}`);
+}
+async function verifySymbol() {
+  const out = $("#verify-status"); const data = collectEditorData(); const symbol = String(data.代號 || "").trim();
+  if (!symbol) { if (out) out.textContent = "請先填代號"; return; }
+  if (!state.settings.token) { if (out) out.textContent = "需要先在「更多 → 設定」輸入連線碼"; return; }
+  if (out) out.textContent = "查詢中…";
+  try {
+    const response = await fetch(endpoint("piggy-prices"), { method: "POST", headers: apiHeaders(), body: JSON.stringify({ holdings: [{ id: "verify", name: data.名稱, symbol, market: data.市場, currency: data.計價幣別 || "TWD" }] }) });
+    if (!response.ok) throw new Error(`服務回應 ${response.status}`);
+    const quote = ((await response.json()).quotes || [])[0];
+    if (quote?.price) {
+      const draft = { ...state.editor.draft, ...collectEditorData(), 最新價: roundedNumber(quote.price, 8), 報價來源: quote.source };
+      if (!draft.名稱 && quote.name) draft.名稱 = quote.name;
+      if (data.市場 === "美股" && !draft.計價幣別) draft.計價幣別 = "USD"; if (data.市場 === "台股" && !draft.計價幣別) draft.計價幣別 = "TWD";
+      state.editor.draft = draft; renderEditorFields(); const note = $("#verify-status"); if (note) note.textContent = `✓ ${quote.name ? quote.name + " · " : ""}現價 ${quote.price}（${quote.source}）`;
+    } else if (out) out.textContent = `✗ ${quote?.status || "查不到"}`;
+  } catch (error) { if (out) out.textContent = `查詢失敗：${error.message}`; }
+}
 function renderQueue() {
   const rows = [...state.outbox.map((x) => ({ ...x, failed: false })), ...state.failed.map((x) => ({ ...x, failed: true }))];
   const el = $("#queue-list"); el.classList.toggle("empty-state", !rows.length);
@@ -550,13 +584,33 @@ function renderEditorFields() {
   const preview = kind === "transaction" && state.editor.receiptImage ? `<figure class="receipt-preview"><figcaption><span><strong>🧾 收據照片</strong>　對照上方欄位核對；照片只存在這台裝置。</span><button type="button" class="secondary" data-action="remove-receipt">移除照片</button></figcaption><img src="${esc(state.editor.receiptImage)}" alt="收據照片"></figure>` : "";
   $("#editor-fields").innerHTML = tabs + receipt + editorHint(kind, data, record) + fields.filter((f) => f.type !== "hidden" && (!f.types || f.types.includes(transactionType)) && (!f.accountTypes || f.accountTypes.includes(data.類型))).map((f) => renderField(f, data[f.name])).join("") + preview + (kind === "transaction" ? `<input type="hidden" name="收支" value="${esc(transactionType)}">` : "");
 }
+const STABLE_COINS = ["USDT", "USDC", "DAI", "USDD"];
+function holdingPicker(data) {
+  if (data.市場 === "加密貨幣") {
+    const code = String(data.代號 || "").trim();
+    return `<div class="receipt-tools coin-picker"><strong>🔎 選擇加密貨幣</strong>　輸入名稱或代號搜尋，點選後會自動帶入名稱與報價編號。${code ? `<br>目前：<b>${esc(data.名稱 || "")}</b> · 代號 <code>${esc(code)}</code>` : ""}<input id="coin-search" placeholder="例如 bitcoin、BTC、solana" autocomplete="off"><div id="coin-results" class="coin-results"></div></div>`;
+  }
+  if (data.市場 === "台股" || data.市場 === "美股") {
+    return `<div class="receipt-tools"><strong>🔎 ${esc(data.市場)}</strong>　輸入代號（${data.市場 === "台股" ? "例如 0050、2330" : "例如 VT、AAPL"}），按「查價驗證」確認代號正確並取得現價${data.市場 === "台股" ? "與名稱" : ""}。<div class="option-add"><button type="button" class="secondary" data-action="verify-symbol">查價驗證</button><span id="verify-status" class="source-note"></span></div></div>`;
+  }
+  return "";
+}
+function duplicateHint(kind, data) {
+  if (kind === "holding" && data.市場 === "加密貨幣") {
+    const sym = cryptoSymbol(data.代號).replace(/^cg:/, "").toUpperCase(); const nameSym = (String(data.名稱 || "").match(/\(([A-Za-z0-9]+)\)/) || [])[1]?.toUpperCase() || sym;
+    if (STABLE_COINS.includes(nameSym)) return `<div class="receipt-tools warn">⚠ ${esc(nameSym)} 是穩定幣，建議記在「交易所帳戶」並把帳戶幣別設成 ${esc(nameSym)}；放在持倉也可以，但<b>同一筆不要兩邊都記</b>，否則會算兩次。</div>`;
+    if (currencyCodes().includes(nameSym) && state.accounts.some((a) => a.p?.幣別 === nameSym && (number(a.p?.期初餘額) || 0) !== 0)) return `<div class="receipt-tools warn">⚠ 已經有帳戶用 ${esc(nameSym)} 當幣別並填了餘額；同一筆幣不要在帳戶與持倉各記一次，否則會算兩次。</div>`;
+  }
+  if (kind === "account" && isCrypto(data.幣別) && !STABLE_COINS.includes(data.幣別)) return `<div class="receipt-tools warn">⚠ ${esc(data.幣別)} 這類幣建議記在「投資 → 新增持倉」（才有成本與報酬率）；帳戶的「期初餘額」只放穩定幣或現金。同一筆不要兩邊都記。</div>`;
+  return "";
+}
 function editorHint(kind, data, record) {
   let text = "";
   if (kind === "account" && INVESTMENT_ACCOUNT_TYPES.includes(data.類型)) text = `<strong>${esc(data.類型)}帳戶怎麼填</strong>　「期初餘額」只填帳戶裡<strong>還沒投資的現金</strong>${data.類型 === "加密貨幣" ? "（或穩定幣）" : ""}，沒有就填 0。已經買的標的請到「投資 → 新增持倉」填數量與平均成本，不要記成支出，也不要算進期初餘額。`;
   else if (kind === "account" && data.類型 === "信用卡") text = "<strong>信用卡怎麼填</strong>　「期初餘額」填目前未繳總額並加負號，例如 -12000；沒有欠款填 0。";
   else if (kind === "account" && data.類型 === "保險") text = "<strong>保險怎麼填</strong>　純保障型選「不計入（純保障）」；有解約金的保單選「計入資產」並填目前保單價值（不是已繳保費）。";
   else if (kind === "holding" && !record) text = "<strong>已經持有的股票／加密貨幣</strong>　直接在這裡填目前的「數量」與「平均成本」（每單位買進均價），不用補記買入交易，也不會算成支出。之後再加碼才用「記一筆 → 投資買入」。";
-  return text ? `<div class="receipt-tools">${text}</div>` : "";
+  return (kind === "holding" ? holdingPicker(data) : "") + duplicateHint(kind, data) + (text ? `<div class="receipt-tools">${text}</div>` : "");
 }
 function renderField(f, value) {
   const className = `${f.wide ? "wide " : ""}${f.type === "checkbox" ? "check" : ""}`;
@@ -690,10 +744,16 @@ async function saveTodaySnapshot() {
   const values = { 日期: date, 快照日: date, 淨資產TWD: Math.round(t.net), 投資TWD: Math.round(t.investments), USD匯率: roundedNumber(rate("USD"), 6), THB匯率: roundedNumber(rate("THB"), 6), JPY匯率: roundedNumber(rate("JPY"), 6), 抓價狀態: "App 本機快照" };
   await putOne("snapshots", { id: existing?.id || `snapshot-${date}`, edited: existing?.edited || null, p: values });
 }
-function cryptoSymbol(text) { return String(text || "").trim().toUpperCase().split(/[-\/_\s]/)[0]; }
+function cryptoSymbol(text) {
+  const raw = String(text || "").trim();
+  if (/^cg:/i.test(raw)) return `cg:${raw.slice(3).trim().toLowerCase()}`;
+  const lower = raw.toLowerCase(); if (Object.values(COINGECKO_IDS).includes(lower)) return `cg:${lower}`;
+  return raw.toUpperCase().split(/[-\/_\s]/)[0];
+}
 async function coingeckoIds(symbols) {
   const ids = {}; const cache = { ...(state.settings.cgIds || {}) }; let changed = false;
   for (const symbol of symbols) {
+    if (String(symbol).startsWith("cg:")) { ids[symbol] = symbol.slice(3); continue; }
     if (COINGECKO_IDS[symbol] || cache[symbol]) { ids[symbol] = COINGECKO_IDS[symbol] || cache[symbol]; continue; }
     try {
       const found = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(symbol)}`).then((response) => response.ok ? response.json() : null);
@@ -804,8 +864,17 @@ function bindEvents() {
     const sel = event.target;
     if (sel.value === "__manage__") { sel.value = sel.dataset.prev || ""; openOptionsDialog(sel.dataset.manage); return; }
     if (sel.dataset?.prev !== undefined) sel.dataset.prev = sel.value;
+    if (state.editor?.kind === "holding" && sel.name === "市場") { state.editor.draft = { ...state.editor.draft, ...collectEditorData() }; renderEditorFields(); return; }
+    if (state.editor?.kind === "account" && sel.name === "幣別") { state.editor.draft = { ...state.editor.draft, ...collectEditorData() }; renderEditorFields(); return; }
     if (state.editor?.kind !== "account" || event.target.name !== "類型") return;
     state.editor.draft = { ...state.editor.draft, ...collectEditorData() }; renderEditorFields();
+  });
+  $("#editor-fields").addEventListener("input", (event) => {
+    if (event.target.id !== "coin-search") return; clearTimeout(coinSearchTimer); const value = event.target.value; coinSearchTimer = setTimeout(() => void searchCoins(value), 400);
+  });
+  $("#editor-fields").addEventListener("click", (event) => {
+    const coin = event.target.closest("[data-coin-id]"); if (coin) { pickCoin(coin); return; }
+    if (event.target.closest('[data-action="verify-symbol"]')) void verifySymbol();
   });
   $("#options-dialog").addEventListener("click", (event) => {
     if (event.target.closest("[data-options-close]")) $("#options-dialog").close();
@@ -820,7 +889,7 @@ function bindEvents() {
     await removeRecord(({ account: "accounts", holding: "holdings", recurring: "recurring", transaction: "transactions" })[kind], record); $("#editor-dialog").close(); toast("已刪除");
   });
   $("#settings-form").addEventListener("submit", async (event) => {
-    event.preventDefault(); const form = new FormData(event.currentTarget); const settings = { ...state.settings, id: "settings", baseUrl: String(form.get("baseUrl") || DEFAULT_SETTINGS.baseUrl).replace(/\/$/, ""), token: String(form.get("token") || ""), displayCurrency: form.get("displayCurrency") || "TWD", rateTWD: 1, ...Object.fromEntries(currencyCodes().filter((code) => code !== "TWD").map((code) => [`rate${code}`, number(form.get(`rate${code}`))])) };
+    event.preventDefault(); const form = new FormData(event.currentTarget); const settings = { ...state.settings, id: "settings", baseUrl: String(form.get("baseUrl") || DEFAULT_SETTINGS.baseUrl).replace(/\/$/, ""), token: String(form.get("token") || ""), displayCurrency: form.get("displayCurrency") || "TWD", rateTWD: 1, ...Object.fromEntries(currencyCodes().filter((code) => code !== "TWD").map((code) => [`rate${code}`, roundedNumber(number(form.get(`rate${code}`)), 8)])) };
     await putOne("meta", settings); await loadState(); render(); renderSettings(true); toast("設定已儲存在這台裝置"); if (settings.token) void synchronize(false);
   });
   $("#wizard-prev").addEventListener("click", () => { if (state.wizardStep > 0) { state.wizardStep -= 1; renderWizard(); } });
