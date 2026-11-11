@@ -12,7 +12,7 @@ dialog{width:min(620px,calc(100% - 24px));max-height:92vh;border:0;border-radius
 @media(max-width:900px){.guide-grid{grid-template-columns:1fr}.guide-card.wide,.trend-card,.guide-entry{grid-column:auto}.guide-entry{align-items:flex-start;flex-direction:column}.guide-hero{padding:22px}.guide-hero>span{display:none}.mistake-grid{grid-template-columns:1fr}.step-flow li{grid-template-columns:1fr;gap:2px}.reconcile-row{grid-template-columns:1fr 100px}.reconcile-row button{grid-column:1/-1}}
 
 /* Android 原生 App：狀態列是全螢幕疊在內容上，內容往下讓開（Capacitor 8 會提供 --safe-area-inset-top） */
-.is-native main{padding-top:calc(22px + var(--safe-area-inset-top, 32px))}
+.is-native main{padding-top:calc(22px + max(var(--safe-area-inset-top, 0px), env(safe-area-inset-top, 0px), 36px))}
 
 /* 手機：記帳說明的表格改成卡片，不再左右滑動 */
 @media(max-width:900px){

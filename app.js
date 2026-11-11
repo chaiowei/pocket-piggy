@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.4.0-p3";
+const APP_VERSION = "2.4.1-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -692,7 +692,7 @@ async function analyzeReceipt(file) {
     if (!navigator.onLine) { editor.receiptStatus = "照片已附在下方。目前離線無法辨識，請對照照片手動填寫。"; renderEditorFields(); return; }
     editor.receiptStatus = "正在辨識…照片已顯示在下方。"; renderEditorFields();
     const response = await fetch(endpoint("piggy-receipt"), { method: "POST", headers: apiHeaders(), body: JSON.stringify(image) });
-    if (!response.ok) throw new Error(`辨識服務回應 ${response.status}`); const payload = await response.json(); if (!payload.ok) throw new Error(payload.error || "辨識失敗");
+    if (!response.ok) throw new Error(`辨識服務回應 ${response.status}`); const payload = await response.json().catch(() => ({})); if (!payload.ok) throw new Error(payload.error || "辨識失敗");
     const found = payload.data || payload.result || {}; const allowed = ["店家／項目", "日期", "原幣金額", "幣別", "分類", "備註", "狀態"];
     const current = collectEditorData(); state.editor.draft = { ...state.editor.draft, ...current, ...Object.fromEntries(allowed.filter((key) => found[key] !== undefined && found[key] !== null).map((key) => [key, found[key]])) };
     if (state.editor !== editor) return;
@@ -797,7 +797,7 @@ async function refreshPrices() {
     if (state.settings.token && state.holdings.length) {
       try {
         const response = await fetch(endpoint("piggy-prices"), { method: "POST", headers: apiHeaders(), body: JSON.stringify({ holdings: state.holdings.map((row) => ({ id: row.id, name: row.p?.名稱, symbol: row.p?.代號, market: row.p?.市場, currency: row.p?.計價幣別, last_price: row.p?.最新價 })) }) });
-        if (response.ok) { const payload = await response.json(); for (const quote of payload.quotes || []) { const holding = state.holdings.find((row) => row.id === quote.id); if (holding && quote.price) { await saveRecord("holdings", { 最新價: roundedNumber(quote.price, 8), 價格更新時間: quote.updated_at || nowISO(), 報價來源: quote.source || "自動報價" }, holding); quoted.add(quote.id); } } }
+        if (response.ok) { const payload = await response.json().catch(() => ({})); for (const quote of payload.quotes || []) { const holding = state.holdings.find((row) => row.id === quote.id); if (holding && quote.price) { await saveRecord("holdings", { 最新價: roundedNumber(quote.price, 8), 價格更新時間: quote.updated_at || nowISO(), 報價來源: quote.source || "自動報價" }, holding); quoted.add(quote.id); } } }
         else problems.push(`報價服務回應 ${response.status}`);
       } catch (error) { problems.push(`報價服務：${error.message}`); }
     }
