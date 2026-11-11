@@ -27,3 +27,19 @@ dialog{width:min(620px,calc(100% - 24px));max-height:92vh;border:0;border-radius
 .guide-card{overflow-wrap:anywhere}
 .guide-card,.guide-hero,.guide-grid{min-width:0;max-width:100%}
 }
+
+/* 2.2.0：收據照片預覽、可新增幣別、持倉報酬率 */
+.receipt-preview{grid-column:1/-1;margin:0;padding:12px;border-radius:14px;border:1px dashed var(--border);background:#fffdfb}
+.receipt-preview figcaption{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;color:var(--muted);font-size:.82rem}
+.receipt-preview figcaption strong{color:var(--ink)}
+.receipt-preview figcaption button{flex:0 0 auto;padding:.4rem .7rem;font-size:.76rem}
+.receipt-preview img{display:block;width:100%;height:auto;border-radius:10px;background:#f4ece8}
+.settings-card label.rate-row{display:grid;grid-template-columns:minmax(84px,auto) 1fr auto;align-items:center;gap:10px}
+.rate-row span{display:flex;flex-direction:column}.rate-row small{color:var(--muted);font-weight:400;font-size:.7rem}
+.rate-row button{padding:.45rem .65rem;font-size:.74rem}
+.currency-add{display:grid;grid-template-columns:1fr auto auto;gap:8px;margin:14px 0 8px;padding-top:12px;border-top:1px dashed var(--border)}
+.settings-card .currency-add select{width:auto}
+.section-total small{display:block;margin-top:3px;font-size:.8rem;font-weight:800}
+.return.gain{color:#36836a}.return.loss{color:var(--danger)}
+.return-line{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:8px;font-size:.86rem}
+@media(max-width:560px){.currency-add{grid-template-columns:1fr auto}.currency-add input{grid-column:1/-1}.receipt-preview{grid-column:auto}}

@@ -85,7 +85,7 @@
       </section>
 
       <section data-view="investments" class="view">
-        <div class="section-actions"><span id="holding-total" class="section-total">總現值 NT$0</span><div class="button-row"><button class="secondary" data-action="prices">↻ 更新報價</button><button data-action="holding">＋ 新增持倉</button></div></div>
+        <div class="section-actions"><div id="holding-total" class="section-total">總現值 NT$0</div><div class="button-row"><button class="secondary" data-action="prices">↻ 更新報價</button><button data-action="holding">＋ 新增持倉</button></div></div>
         <div id="holding-list" class="card-grid empty-state">尚無持倉</div>
       </section>
 
@@ -105,14 +105,17 @@
             <form id="settings-form">
               <label>n8n 網址<input name="baseUrl" type="url" autocomplete="url" required></label>
               <label>連線碼<input name="token" type="password" autocomplete="off" placeholder="由你本人輸入；程式不內建"></label>
-              <label>顯示幣別<select name="displayCurrency"><option>TWD</option><option>THB</option><option>USD</option><option>JPY</option></select></label>
-              <fieldset><legend>1 單位外幣等於多少台幣</legend>
-                <label>THB<input name="rateTHB" type="number" min="0" step="0.0001"></label>
-                <label>USD<input name="rateUSD" type="number" min="0" step="0.0001"></label>
-                <label>JPY<input name="rateJPY" type="number" min="0" step="0.0001"></label>
+              <label>顯示幣別<select name="displayCurrency"><option>TWD</option></select></label>
+              <fieldset><legend>幣別與匯率（1 單位等於多少台幣）</legend>
+                <div id="rate-fields"></div>
+                <div class="currency-add">
+                  <input id="new-currency-code" type="text" maxlength="10" autocapitalize="characters" autocomplete="off" placeholder="新增幣別代號，例如 SOL、EUR" aria-label="新增幣別代號">
+                  <select id="new-currency-kind" aria-label="幣別種類"><option value="crypto">加密貨幣</option><option value="fiat">法幣</option></select>
+                  <button type="button" class="secondary" data-action="add-currency">＋ 新增</button>
+                </div>
               </fieldset>
               <div class="button-row"><button type="submit">儲存設定</button><button type="button" class="secondary" data-action="full-sync">完整重新同步</button><button type="button" class="secondary" data-action="prices">更新匯率與報價</button></div>
-              <p class="source-note">匯率由 <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener">ExchangeRate-API</a> 提供；報價會保留來源與更新時間。</p>
+              <p class="source-note">法幣匯率由 <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener">ExchangeRate-API</a> 提供、加密貨幣價格由 <a href="https://www.coingecko.com" target="_blank" rel="noopener">CoinGecko</a> 提供；報價會保留來源與更新時間，抓不到時可手動填。</p>
             </form>
           </article>
           <article class="card queue-card">
@@ -149,7 +152,10 @@
           <article class="guide-card"><span class="guide-number">4</span><h2>投資與定期定額</h2><ul><li>買進用「投資買入」，現金減少、持倉增加，不算支出。</li><li>賣出用「投資賣出」，持倉減少、現金增加。</li><li>股息、配息、利息用「收入」。</li><li>手續費放在交易的手續費欄位。</li><li>定期定額可設為固定支出，但性質要選「轉入資產」。</li></ul></article>
           <article class="guide-card"><span class="guide-number">5</span><h2>開帳與多幣別</h2><ul><li>開帳日以前不用補登；直接填當天實際餘額。</li><li>信用卡期初餘額填「負的未繳總額」。</li><li>外幣帳戶保留原幣，總覽再依匯率換算台幣。</li><li>換匯用轉帳：來源填賣出的幣別金額，實扣填轉入帳戶實收。</li></ul></article>
 
-          <article class="guide-card wide danger-guide"><h2>最常見的重複計算</h2><div class="mistake-grid"><div><strong>✕ 刷卡記支出，繳款又記支出</strong><span>正確：繳款記轉帳。</span></div><div><strong>✕ 買股票記支出，又把持倉算資產</strong><span>正確：買進記投資買入。</span></div><div><strong>✕ 儲蓄險把總保費當保單價值</strong><span>正確：只用當下解約金。</span></div><div><strong>✕ 入帳時再新增一筆刷卡紀錄</strong><span>正確：修改原交易。</span></div></div></article>
+          <article class="guide-card"><span class="guide-number">6</span><h2>已經持有的股票／加密貨幣</h2><p>開始用小豬帳本以前就買好的標的，<strong>不用補記交易，也不是支出</strong>：</p><ul><li>先建「帳戶」：類型選台股／美股／加密貨幣（例如券商、交易所、冷錢包），期初餘額只填<strong>還沒投資的現金或穩定幣</strong>，沒有就填 0。</li><li>再到「投資 → 新增持倉」：每個標的一筆，填代號、市場、計價幣別、目前<strong>數量</strong>與<strong>平均成本</strong>（每單位買進均價），所屬帳戶選剛剛的帳戶。</li><li>之後再加碼才用「記一筆 → 投資買入」，賣出用「投資賣出」。</li><li>當成錢在用的幣（例如放著的 USDT）可以直接開一個幣別為 USDT 的帳戶；同一批幣不要同時記在帳戶餘額和持倉，否則會重複計算。</li></ul></article>
+          <article class="guide-card"><span class="guide-number">7</span><h2>報價與報酬率怎麼算</h2><ul><li><strong>未實現損益</strong>＝數量 ×（最新價 − 平均成本）；<strong>報酬率</strong>＝未實現損益 ÷（數量 × 平均成本）。</li><li>加密貨幣：CoinGecko 即時價，代號填 BTC、ETH、SOL 這類通用代號即可。</li><li>台股：證交所 TWSE 每日收盤價，代號填股票代號（例如 2330）。</li><li>美股、泰國基金：需在 n8n 設定 Finnhub／Thai SEC 金鑰，否則請手動填最新價。</li><li>外幣換算台幣：ExchangeRate-API 每日匯率。</li><li>按「更新報價」或每 12 小時自動更新；持倉卡片下方會顯示報價來源與時間，顯示「手動價格」代表沒抓到。</li><li>平均成本不含手續費；已賣出的已實現損益與配息不計入報酬率。</li></ul></article>
+
+          <article class="guide-card wide danger-guide"><h2>最常見的重複計算</h2><div class="mistake-grid"><div><strong>✕ 刷卡記支出，繳款又記支出</strong><span>正確：繳款記轉帳。</span></div><div><strong>✕ 買股票記支出，又把持倉算資產</strong><span>正確：買進記投資買入。</span></div><div><strong>✕ 儲蓄險把總保費當保單價值</strong><span>正確：只用當下解約金。</span></div><div><strong>✕ 入帳時再新增一筆刷卡紀錄</strong><span>正確：修改原交易。</span></div><div><strong>✕ 已持有的幣或股票補記成支出</strong><span>正確：新增持倉，填數量與平均成本。</span></div><div><strong>✕ 同一批幣又填帳戶餘額又建持倉</strong><span>正確：擇一，要看報酬率就用持倉。</span></div></div></article>
         </div>
       </section>
     </main>
