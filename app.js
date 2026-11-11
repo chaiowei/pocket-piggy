@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.4.1-p3";
+const APP_VERSION = "2.5.1-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -573,14 +573,14 @@ function openEditor(kind, record = null, draft = {}) {
   }
   $("#editor-title").textContent = `${record ? "編輯" : "新增"}${({ account: "帳戶", holding: "持倉", recurring: "固定支出", transaction: "交易" })[kind]}`;
   $("#delete-button").classList.toggle("hidden", !record);
-  $("#receipt-button").classList.toggle("hidden", kind !== "transaction");
+  $("#receipt-button").classList.toggle("hidden", kind !== "transaction"); $("#receipt-gallery-button").classList.toggle("hidden", kind !== "transaction");
   renderEditorFields(); $("#editor-dialog").showModal();
 }
 function renderEditorFields() {
   const { kind, record, transactionType } = state.editor; const data = { ...(record?.p || {}), ...(state.editor.draft || {}) };
   const fields = kind === "account" ? accountFields : kind === "holding" ? holdingFields : kind === "recurring" ? recurringFields : transactionFields;
   const tabs = kind === "transaction" ? `<div class="type-tabs">${["支出", "收入", "轉帳", "投資買入", "投資賣出"].map((type) => `<button type="button" data-transaction-type="${type}" class="${type === transactionType ? "active" : ""}">${type}</button>`).join("")}</div>` : "";
-  const receipt = kind === "transaction" ? `<div class="receipt-tools"><strong>📷 收據 AI 辨識</strong>　拍照後只會先填表，不會自動儲存；請確認金額與帳戶。${state.editor.receiptStatus ? `<br>${esc(state.editor.receiptStatus)}` : ""}</div>` : "";
+  const receipt = kind === "transaction" ? `<div class="receipt-tools"><strong>📷 收據 AI 辨識</strong>　可以「拍照」或「從相簿選」一張收據；辨識後只會先填表，不會自動儲存，請確認金額與帳戶。${state.editor.receiptStatus ? `<br><span id="receipt-status-text">${esc(state.editor.receiptStatus)}</span>` : ""}</div>` : "";
   const preview = kind === "transaction" && state.editor.receiptImage ? `<figure class="receipt-preview"><figcaption><span><strong>🧾 收據照片</strong>　對照上方欄位核對；照片只存在這台裝置。</span><button type="button" class="secondary" data-action="remove-receipt">移除照片</button></figcaption><img src="${esc(state.editor.receiptImage)}" alt="收據照片"></figure>` : "";
   $("#editor-fields").innerHTML = tabs + receipt + editorHint(kind, data, record) + fields.filter((f) => f.type !== "hidden" && (!f.types || f.types.includes(transactionType)) && (!f.accountTypes || f.accountTypes.includes(data.類型))).map((f) => renderField(f, data[f.name])).join("") + preview + (kind === "transaction" ? `<input type="hidden" name="收支" value="${esc(transactionType)}">` : "");
 }
@@ -690,15 +690,24 @@ async function analyzeReceipt(file) {
     editor.draft = { ...editor.draft, ...collectEditorData() }; editor.receiptImage = dataUrl; editor.receiptRemoved = false;
     if (!state.settings.token) { editor.receiptStatus = "照片已附在下方。AI 辨識需要先在「更多 → 設定」輸入連線碼，目前請對照照片手動填寫。"; renderEditorFields(); return; }
     if (!navigator.onLine) { editor.receiptStatus = "照片已附在下方。目前離線無法辨識，請對照照片手動填寫。"; renderEditorFields(); return; }
-    editor.receiptStatus = "正在辨識…照片已顯示在下方。"; renderEditorFields();
-    const response = await fetch(endpoint("piggy-receipt"), { method: "POST", headers: apiHeaders(), body: JSON.stringify(image) });
+    editor.receiptStatus = "辨識中…通常 10～40 秒，照片已顯示在下方。"; renderEditorFields();
+    const startedAt = Date.now(); const controller = new AbortController();
+    const timer = setInterval(() => { const el = $("#receipt-status-text"); if (el) el.textContent = `辨識中…已等 ${Math.round((Date.now() - startedAt) / 1000)} 秒（通常 10～40 秒），照片已顯示在下方。`; }, 1000);
+    const abortTimer = setTimeout(() => controller.abort(), 120000);
+    let response;
+    try { response = await fetch(endpoint("piggy-receipt"), { method: "POST", headers: apiHeaders(), body: JSON.stringify({ ...image, currencies: currencyCodes() }), signal: controller.signal }); }
+    catch (error) { throw new Error(error?.name === "AbortError" ? "等太久沒有回應（超過 2 分鐘），請再按一次辨識" : error.message); }
+    finally { clearInterval(timer); clearTimeout(abortTimer); }
     if (!response.ok) throw new Error(`辨識服務回應 ${response.status}`); const payload = await response.json().catch(() => ({})); if (!payload.ok) throw new Error(payload.error || "辨識失敗");
     const found = payload.data || payload.result || {}; const allowed = ["店家／項目", "日期", "原幣金額", "幣別", "分類", "備註", "狀態"];
     const current = collectEditorData(); state.editor.draft = { ...state.editor.draft, ...current, ...Object.fromEntries(allowed.filter((key) => found[key] !== undefined && found[key] !== null).map((key) => [key, found[key]])) };
+    const foundCurrency = String(found["幣別"] || "").trim().toUpperCase();
+    let addedCurrency = "";
+    if (/^[A-Z]{3}$/.test(foundCurrency) && !currencyCodes().includes(foundCurrency)) { await addCurrency(foundCurrency, "fiat"); addedCurrency = foundCurrency; }
     if (state.editor !== editor) return;
-    state.editor.receiptStatus = `辨識完成${found.confidence ? `（信心 ${Math.round(number(found.confidence) * 100)}%）` : ""}，請對照下方收據照片核對後再儲存。`; renderEditorFields();
+    state.editor.receiptStatus = `${addedCurrency ? `已自動新增幣別 ${addedCurrency}，匯率稍後自動更新。` : ""}辨識完成${found.confidence ? `（信心 ${Math.round(number(found.confidence) * 100)}%）` : ""}，請對照下方收據照片核對後再儲存。`; renderEditorFields();
   } catch (error) { if (state.editor !== editor) return; editor.draft = { ...editor.draft, ...collectEditorData() }; editor.receiptStatus = `辨識失敗：${error.message}${editor.receiptImage ? "；可對照下方照片手動填寫。" : ""}`; renderEditorFields(); }
-  finally { $("#receipt-input").value = ""; }
+  finally { $("#receipt-input").value = ""; $("#receipt-gallery-input").value = ""; }
 }
 
 function openCardDialog(card) {
@@ -896,6 +905,8 @@ function bindEvents() {
   $("#wizard-next").addEventListener("click", wizardNext);
   $("#receipt-button").addEventListener("click", () => $("#receipt-input").click());
   $("#receipt-input").addEventListener("change", (event) => void analyzeReceipt(event.target.files?.[0]));
+  $("#receipt-gallery-button").addEventListener("click", () => $("#receipt-gallery-input").click());
+  $("#receipt-gallery-input").addEventListener("change", (event) => void analyzeReceipt(event.target.files?.[0]));
   window.addEventListener("online", () => { updateNetworkPill(); void pushOutbox(); });
   window.addEventListener("offline", updateNetworkPill);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) void synchronize(false); });
@@ -907,6 +918,18 @@ async function init() {
     await generateRecurringTransactions(); await saveTodaySnapshot(); await loadState(); render();
     const isNativeApp = Boolean(window.Capacitor?.isNativePlatform?.());
     document.documentElement.classList.toggle("is-native", isNativeApp);
+    const AppPlugin = window.Capacitor?.Plugins?.App;
+    if (isNativeApp && AppPlugin?.addListener) {
+      let lastBack = 0;
+      AppPlugin.addListener("backButton", () => {
+        const dialogs = [...document.querySelectorAll("dialog[open]")];
+        if (dialogs.length) { dialogs[dialogs.length - 1].close("cancel"); return; }
+        if (state.view && state.view !== "overview") { switchView("overview"); return; }
+        const now = Date.now();
+        if (now - lastBack < 2000) { AppPlugin.exitApp(); return; }
+        lastBack = now; toast("再滑一次返回才會離開小豬帳本");
+      });
+    }
     if (!isNativeApp && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
     if (navigator.onLine && state.settings.token) void synchronize(false);
     const fxAge = Date.now() - Date.parse(state.settings.fxUpdatedAt || "1970-01-01");
