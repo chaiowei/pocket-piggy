@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.2.0-p3";
+const APP_VERSION = "2.3.0-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -22,7 +22,16 @@ const DEFAULT_SETTINGS = {
 const FIAT_CURRENCIES = ["TWD", "THB", "USD", "JPY"];
 const CRYPTO_CURRENCIES = ["BTC", "ETH", "USDT", "USDC"];
 const COUNTRIES = ["台灣", "泰國", "美國", "日本", "中國", "香港", "新加坡", "馬來西亞", "越南", "韓國", "英國", "歐盟", "澳洲", "加拿大", "全球／無國界", "其他"];
-const INVESTMENT_ACCOUNT_TYPES = ["台股", "美股", "泰國基金", "加密貨幣"];
+const INVESTMENT_ACCOUNT_TYPES = ["投資", "加密貨幣", "台股", "美股", "泰國基金"];
+// 下拉選單：內建選項 ∪ 資料裡已出現的值 ∪ 自己新增的 − 自己刪除的（使用中的值不能刪）。值對齊 Notion 欄位選項。
+const OPTION_BASE = {
+  country: COUNTRIES,
+  type: ["銀行", "現金", "電子支付", "信用卡", "保險", "投資", "加密貨幣"],
+  insurance: ["儲蓄險", "終身壽險", "投資型保單", "定期壽險", "醫療險", "意外險", "產險車險"],
+};
+const OPTION_FIELD = { country: "國家", type: "類型", insurance: "保險種類" };
+const OPTION_LABEL = { country: "國家", type: "帳戶類型", insurance: "保險種類", currency: "幣別" };
+const INCLUDE_YES = ["計入資產", "是"];
 // 加密貨幣代號 → CoinGecko id；不在表內的代號會在更新報價時用 CoinGecko 搜尋自動對照
 const COINGECKO_IDS = { BTC: "bitcoin", XBT: "bitcoin", WBTC: "wrapped-bitcoin", ETH: "ethereum", SOL: "solana", USDT: "tether", USDC: "usd-coin", USDD: "usdd", DAI: "dai", BNB: "binancecoin", XRP: "ripple", DOGE: "dogecoin", ADA: "cardano", TRX: "tron", TON: "the-open-network", AVAX: "avalanche-2", DOT: "polkadot", LINK: "chainlink", LTC: "litecoin", BCH: "bitcoin-cash", SHIB: "shiba-inu", MATIC: "matic-network", POL: "polygon-ecosystem-token", UNI: "uniswap", ATOM: "cosmos", XLM: "stellar", NEAR: "near", APT: "aptos", ARB: "arbitrum", OP: "optimism", SUI: "sui", PEPE: "pepe", ETC: "ethereum-classic", FIL: "filecoin", HYPE: "hyperliquid" };
 
@@ -93,10 +102,23 @@ async function loadState() {
 function customCurrencies() { return Array.isArray(state.settings.currencies) ? state.settings.currencies : []; }
 function currencyList() {
   const seen = new Set(); const list = [];
+  const hidden = Array.isArray(state.settings.hiddenCurrencies) ? state.settings.hiddenCurrencies : [];
   for (const item of [...FIAT_CURRENCIES.map((code) => ({ code, kind: "fiat", builtin: true })), ...CRYPTO_CURRENCIES.map((code) => ({ code, kind: "crypto", builtin: true })), ...customCurrencies()]) {
-    if (item?.code && !seen.has(item.code)) { seen.add(item.code); list.push(item); }
+    if (item?.code && !seen.has(item.code) && (item.code === "TWD" || !item.builtin || !hidden.includes(item.code))) { seen.add(item.code); list.push(item); }
   }
   return list;
+}
+function optionState(key) { const o = state.settings.options?.[key] || {}; return { add: asArray(o.add), remove: asArray(o.remove) }; }
+function optionUsedCount(key, value) {
+  if (key === "currency") return state.accounts.filter((r) => r.p?.幣別 === value).length + state.holdings.filter((r) => r.p?.計價幣別 === value).length + state.recurring.filter((r) => r.p?.幣別 === value).length + state.transactions.filter((r) => r.p?.幣別 === value).length;
+  return state.accounts.filter((r) => r.p?.[OPTION_FIELD[key]] === value).length;
+}
+function optionList(key) {
+  if (key === "currency") return currencyCodes();
+  const { add, remove } = optionState(key); const used = state.accounts.map((r) => r.p?.[OPTION_FIELD[key]]).filter(Boolean);
+  const out = [];
+  for (const value of [...OPTION_BASE[key], ...add, ...used]) if (value && !out.includes(value) && (!remove.includes(value) || used.includes(value))) out.push(value);
+  return out;
 }
 function currencyCodes() { return currencyList().map((item) => item.code); }
 function isCrypto(currency) { return currencyList().some((item) => item.code === currency && item.kind === "crypto"); }
@@ -157,7 +179,7 @@ function accountBalance(account) {
 }
 function accountTWD(account) {
   const p = account.p || {};
-  if (p.類型 === "保險") return p.計入資產 === "是" || p.計入資產 === true ? toTWD(p.保單價值, p.幣別) : 0;
+  if (p.類型 === "保險") return INCLUDE_YES.includes(p.計入資產) || p.計入資產 === true ? toTWD(p.保單價值, p.幣別) : 0;
   return toTWD(accountBalance(account), p.幣別 || "TWD");
 }
 function holdingTWD(holding) { const p = holding.p || {}; return toTWD(number(p.數量) * number(p.最新價 ?? p.平均成本), p.計價幣別 || "TWD"); }
@@ -442,22 +464,57 @@ function readRateInputs() {
   for (const code of currencyCodes()) { if (code === "TWD") continue; const input = form.elements[`rate${code}`]; if (input && input.value !== "") rates[`rate${code}`] = number(input.value); }
   return rates;
 }
-async function addCurrency() {
-  const code = $("#new-currency-code").value.trim().toUpperCase(); const kind = $("#new-currency-kind").value === "fiat" ? "fiat" : "crypto";
+async function addCurrency(codeArg, kindArg) {
+  const code = String(codeArg ?? $("#new-currency-code").value).trim().toUpperCase(); const kind = (kindArg ?? $("#new-currency-kind").value) === "fiat" ? "fiat" : "crypto";
   if (!/^[A-Z0-9]{2,10}$/.test(code)) return toast("幣別代號請填 2～10 個英數字，例如 SOL、EUR");
   if (currencyCodes().includes(code)) return toast(`${code} 已經在幣別清單裡`);
-  state.settings = { ...state.settings, ...readRateInputs(), currencies: [...customCurrencies(), { code, kind }] };
+  const wasBuiltin = [...FIAT_CURRENCIES, ...CRYPTO_CURRENCIES].includes(code);
+  state.settings = { ...state.settings, ...readRateInputs(), hiddenCurrencies: asArray(state.settings.hiddenCurrencies).filter((c) => c !== code), currencies: wasBuiltin ? customCurrencies() : [...customCurrencies(), { code, kind }] };
   await putOne("meta", state.settings); await loadState(); render(); renderSettings(true);
   $("#new-currency-code").value = ""; toast(`已新增幣別 ${code}`);
   if (navigator.onLine) void refreshPrices(); else toast("目前離線，請先手動填匯率");
 }
 async function removeCurrency(code) {
-  const used = state.accounts.some((row) => row.p?.幣別 === code) || state.holdings.some((row) => row.p?.計價幣別 === code) || state.recurring.some((row) => row.p?.幣別 === code);
-  if (used) return toast(`還有帳戶、持倉或固定支出使用 ${code}，無法移除`);
+  if (code === "TWD") return toast("台幣是基準幣別，不能移除");
+  if (optionUsedCount("currency", code)) return toast(`還有帳戶、持倉、固定支出或交易使用 ${code}，無法移除`);
   if (!confirm(`確定移除幣別 ${code}？`)) return;
-  const settings = { ...state.settings, ...readRateInputs(), currencies: customCurrencies().filter((item) => item.code !== code) };
+  const builtin = [...FIAT_CURRENCIES, ...CRYPTO_CURRENCIES].includes(code);
+  const settings = { ...state.settings, ...readRateInputs(), hiddenCurrencies: builtin ? [...new Set([...asArray(state.settings.hiddenCurrencies), code])] : asArray(state.settings.hiddenCurrencies), currencies: customCurrencies().filter((item) => item.code !== code) };
   delete settings[`rate${code}`]; if (settings.displayCurrency === code) settings.displayCurrency = "TWD";
   state.settings = settings; await putOne("meta", settings); await loadState(); render(); renderSettings(true); toast(`已移除幣別 ${code}`);
+}
+// ---- 下拉選單的「新增／刪除選項」視窗 ----
+function openOptionsDialog(key) { state.optionsKey = key; renderOptionsDialog(); $("#options-dialog").showModal(); }
+function refreshEditorAfterOptions() { if (state.editor) { state.editor.draft = { ...state.editor.draft, ...collectEditorData() }; renderEditorFields(); } }
+function renderOptionsDialog() {
+  const key = state.optionsKey; if (!key) return; $("#options-title").textContent = `管理「${OPTION_LABEL[key]}」選項`;
+  const rows = key === "currency" ? currencyList().map((i) => ({ value: i.code, note: i.kind === "crypto" ? "加密貨幣" : "法幣", locked: i.code === "TWD" })) : optionList(key).map((value) => ({ value }));
+  const adder = key === "currency"
+    ? `<div class="option-add"><input id="options-new" placeholder="代號，例如 EUR、SOL" maxlength="10"><select id="options-kind"><option value="fiat">法幣</option><option value="crypto">加密貨幣</option></select><button type="button" data-options-add>新增</button></div><p class="source-note">新增後匯率會自動抓；查不到時到「更多 → 設定」手動填。</p>`
+    : `<div class="option-add"><input id="options-new" placeholder="輸入新的${esc(OPTION_LABEL[key])}" maxlength="20"><button type="button" data-options-add>新增</button></div>`;
+  $("#options-body").innerHTML = `<div class="option-list">${rows.map((row) => { const used = row.locked ? 0 : optionUsedCount(key, row.value);
+    return `<div class="option-row"><span>${esc(row.value)}${row.note ? `<small>${esc(row.note)}</small>` : ""}</span>${row.locked ? "<i>基準</i>" : used ? `<small>使用中 ${used} 筆</small>` : `<button type="button" class="danger" data-options-delete="${esc(row.value)}">刪除</button>`}</div>`; }).join("") || '<div class="empty-state">沒有選項</div>'}</div>${adder}<p class="source-note">「使用中」的選項不能刪；新增的值會隨資料同步到 Notion（Notion 會自動長出新選項）。</p>`;
+}
+async function saveOptionList(key, next) {
+  state.settings = { ...state.settings, options: { ...(state.settings.options || {}), [key]: next } };
+  await putOne("meta", state.settings); await loadState(); render(); renderOptionsDialog(); refreshEditorAfterOptions();
+}
+async function optionsAdd() {
+  const key = state.optionsKey; const raw = $("#options-new").value.trim();
+  if (!raw) return toast("請先輸入名稱");
+  if (key === "currency") { await addCurrency(raw, $("#options-kind").value); renderOptionsDialog(); refreshEditorAfterOptions(); return; }
+  if (raw.length > 20) return toast("名稱請在 20 字以內");
+  if (optionList(key).includes(raw)) return toast(`「${raw}」已經在清單裡`);
+  const { add, remove } = optionState(key);
+  await saveOptionList(key, { add: [...add.filter((v) => v !== raw), raw], remove: remove.filter((v) => v !== raw) }); toast(`已新增「${raw}」`);
+}
+async function optionsDelete(value) {
+  const key = state.optionsKey;
+  if (key === "currency") { await removeCurrency(value); renderOptionsDialog(); refreshEditorAfterOptions(); return; }
+  if (optionUsedCount(key, value)) return toast(`「${value}」還有 ${optionUsedCount(key, value)} 筆資料使用，無法刪除`);
+  if (!confirm(`確定刪除選項「${value}」？`)) return;
+  const { add, remove } = optionState(key);
+  await saveOptionList(key, { add: add.filter((v) => v !== value), remove: OPTION_BASE[key].includes(value) ? [...new Set([...remove, value])] : remove }); toast(`已刪除「${value}」`);
 }
 function renderQueue() {
   const rows = [...state.outbox.map((x) => ({ ...x, failed: false })), ...state.failed.map((x) => ({ ...x, failed: true }))];
@@ -466,10 +523,10 @@ function renderQueue() {
 }
 
 const field = (name, label, type = "text", options = {}) => ({ name, label, type, ...options });
-const accountFields = [field("名稱", "名稱"), field("類型", "類型", "select", { choices: ["銀行", "現金", "信用卡", "保險", "台股", "美股", "泰國基金", "加密貨幣"] }), field("幣別", "幣別", "select", { choices: currencyCodes }), field("國家", "國家", "select", { choices: COUNTRIES }), field("期初餘額", "期初餘額", "number"), field("開帳日", "開帳日", "date"), field("結帳日", "信用卡結帳日", "number", { accountTypes: ["信用卡"] }), field("繳款日", "信用卡繳款日", "number", { accountTypes: ["信用卡"] }), field("已出帳金額", "已出帳金額", "number", { accountTypes: ["信用卡"] }), field("保險種類", "保險種類", "text", { accountTypes: ["保險"] }), field("計入資產", "保險計入資產", "select", { choices: ["否", "是"], accountTypes: ["保險"] }), field("保單價值", "保單價值", "number", { accountTypes: ["保險"] }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
-const holdingFields = [field("名稱", "名稱"), field("代號", "代號"), field("市場", "市場", "select", { choices: ["台股", "美股", "泰國基金", "加密貨幣", "其他"] }), field("計價幣別", "計價幣別", "select", { choices: currencyCodes }), field("數量", "數量", "number"), field("平均成本", "平均成本", "number"), field("最新價", "最新價（自動報價，可手動改）", "number"), field("帳戶", "所屬帳戶", "relation", { source: "accounts" }), field("定期定額", "定期定額", "checkbox"), field("每期金額", "每期金額", "number"), field("扣款日", "扣款日", "number"), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts" }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
-const recurringFields = [field("名稱", "名稱"), field("群組", "群組"), field("週期", "週期", "select", { choices: ["週", "月", "季", "年"] }), field("金額", "金額", "number"), field("幣別", "幣別", "select", { choices: currencyCodes }), field("性質", "性質", "select", { choices: ["支出", "轉入資產"] }), field("扣款日", "扣款日", "number"), field("扣款月份", "扣款月份", "number"), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts" }), field("下次扣款", "下次扣款", "date"), field("對應持倉", "對應持倉", "relation", { source: "holdings" }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
-const transactionFields = [field("收支", "類型", "hidden"), field("店家／項目", "店家／項目"), field("日期", "日期", "date"), field("原幣金額", "金額", "number"), field("幣別", "幣別", "select", { choices: currencyCodes }), field("帳戶", "帳戶", "relation", { source: "accounts" }), field("分類", "分類", "select", { choices: ["餐飲", "交通", "購物", "居住", "娛樂", "醫療", "旅遊", "薪資", "投資", "保險", "其他"] }), field("狀態", "狀態", "select", { choices: ["預估", "已入帳", "已出帳", "已繳款"] }), field("轉入帳戶", "轉入帳戶", "relation", { source: "accounts", types: ["轉帳"] }), field("實扣金額", "實扣金額", "number", { types: ["轉帳", "支出"] }), field("持倉", "持倉", "relation", { source: "holdings", types: ["投資買入", "投資賣出"] }), field("成交數量", "成交數量", "number", { types: ["投資買入", "投資賣出"] }), field("成交單價", "成交單價", "number", { types: ["投資買入", "投資賣出"] }), field("手續費", "手續費", "number", { types: ["投資買入", "投資賣出"] }), field("定期定額", "定期定額", "checkbox", { types: ["投資買入"] }), field("備註", "備註", "textarea", { wide: true })];
+const accountFields = [field("名稱", "名稱"), field("類型", "類型", "select", { choices: () => optionList("type"), manage: "type" }), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("國家", "國家", "select", { choices: () => optionList("country"), manage: "country" }), field("期初餘額", "期初餘額", "number"), field("開帳日", "開帳日", "date"), field("結帳日", "信用卡結帳日", "number", { accountTypes: ["信用卡"] }), field("繳款日", "信用卡繳款日", "number", { accountTypes: ["信用卡"] }), field("已出帳金額", "已出帳金額", "number", { accountTypes: ["信用卡"] }), field("保險種類", "保險種類", "select", { choices: () => optionList("insurance"), manage: "insurance", accountTypes: ["保險"] }), field("計入資產", "保險是否計入資產", "select", { choices: ["計入資產", "不計入（純保障）"], accountTypes: ["保險"] }), field("保單價值", "保單價值", "number", { accountTypes: ["保險"] }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
+const holdingFields = [field("名稱", "名稱"), field("代號", "代號"), field("市場", "市場", "select", { choices: ["台股", "美股", "泰國基金", "加密貨幣", "其他"] }), field("計價幣別", "計價幣別", "select", { choices: currencyCodes, manage: "currency" }), field("數量", "數量", "number"), field("平均成本", "平均成本", "number"), field("最新價", "最新價（自動報價，可手動改）", "number"), field("帳戶", "所屬帳戶", "relation", { source: "accounts" }), field("定期定額", "定期定額", "checkbox"), field("每期金額", "每期金額", "number"), field("扣款日", "扣款日", "number"), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts" }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
+const recurringFields = [field("名稱", "名稱"), field("群組", "群組"), field("週期", "週期", "select", { choices: ["週", "月", "季", "年"] }), field("金額", "金額", "number"), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("性質", "性質", "select", { choices: ["支出", "轉入資產"] }), field("扣款日", "扣款日", "number"), field("扣款月份", "扣款月份", "number"), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts" }), field("下次扣款", "下次扣款", "date"), field("對應持倉", "對應持倉", "relation", { source: "holdings" }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
+const transactionFields = [field("收支", "類型", "hidden"), field("店家／項目", "店家／項目"), field("日期", "日期", "date"), field("原幣金額", "金額", "number"), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("帳戶", "帳戶", "relation", { source: "accounts" }), field("分類", "分類", "select", { choices: ["餐飲", "交通", "購物", "居住", "娛樂", "醫療", "旅遊", "薪資", "投資", "保險", "其他"] }), field("狀態", "狀態", "select", { choices: ["預估", "已入帳", "已出帳", "已繳款"] }), field("轉入帳戶", "轉入帳戶", "relation", { source: "accounts", types: ["轉帳"] }), field("實扣金額", "實扣金額", "number", { types: ["轉帳", "支出"] }), field("持倉", "持倉", "relation", { source: "holdings", types: ["投資買入", "投資賣出"] }), field("成交數量", "成交數量", "number", { types: ["投資買入", "投資賣出"] }), field("成交單價", "成交單價", "number", { types: ["投資買入", "投資賣出"] }), field("手續費", "手續費", "number", { types: ["投資買入", "投資賣出"] }), field("定期定額", "定期定額", "checkbox", { types: ["投資買入"] }), field("備註", "備註", "textarea", { wide: true })];
 
 function openEditor(kind, record = null, draft = {}) {
   state.editor = { kind, record, draft, transactionType: draft.收支 || record?.p?.收支 || "支出", receiptStatus: "", receiptImage: null, receiptRemoved: false };
@@ -497,7 +554,7 @@ function editorHint(kind, data, record) {
   let text = "";
   if (kind === "account" && INVESTMENT_ACCOUNT_TYPES.includes(data.類型)) text = `<strong>${esc(data.類型)}帳戶怎麼填</strong>　「期初餘額」只填帳戶裡<strong>還沒投資的現金</strong>${data.類型 === "加密貨幣" ? "（或穩定幣）" : ""}，沒有就填 0。已經買的標的請到「投資 → 新增持倉」填數量與平均成本，不要記成支出，也不要算進期初餘額。`;
   else if (kind === "account" && data.類型 === "信用卡") text = "<strong>信用卡怎麼填</strong>　「期初餘額」填目前未繳總額並加負號，例如 -12000；沒有欠款填 0。";
-  else if (kind === "account" && data.類型 === "保險") text = "<strong>保險怎麼填</strong>　純保障型選「不計入資產」；有解約金的保單選「是」並填目前保單價值（不是已繳保費）。";
+  else if (kind === "account" && data.類型 === "保險") text = "<strong>保險怎麼填</strong>　純保障型選「不計入（純保障）」；有解約金的保單選「計入資產」並填目前保單價值（不是已繳保費）。";
   else if (kind === "holding" && !record) text = "<strong>已經持有的股票／加密貨幣</strong>　直接在這裡填目前的「數量」與「平均成本」（每單位買進均價），不用補記買入交易，也不會算成支出。之後再加碼才用「記一筆 → 投資買入」。";
   return text ? `<div class="receipt-tools">${text}</div>` : "";
 }
@@ -507,7 +564,8 @@ function renderField(f, value) {
     const choices = typeof f.choices === "function" ? f.choices() : f.choices; const current = String(value ?? "");
     // 既有資料若不在選單內（例如舊的手填國家），保留為選項，避免編輯時被清空
     const all = current && !choices.includes(current) ? [current, ...choices] : choices;
-    return `<label class="${className}">${esc(f.label)}<select name="${esc(f.name)}"><option value="">請選擇</option>${all.map((choice) => `<option ${current === choice ? "selected" : ""}>${esc(choice)}</option>`).join("")}</select></label>`;
+    const manage = f.manage ? `<option value="__manage__">＋ 新增／刪除選項…</option>` : "";
+    return `<label class="${className}">${esc(f.label)}<select name="${esc(f.name)}" data-prev="${esc(current)}" ${f.manage ? `data-manage="${f.manage}"` : ""}><option value="">請選擇</option>${all.map((choice) => `<option ${current === choice ? "selected" : ""}>${esc(choice)}</option>`).join("")}${manage}</select></label>`;
   }
   if (f.type === "relation") {
     const rows = state[f.source] || []; const selected = asArray(value)[0] || "";
@@ -743,9 +801,18 @@ function bindEvents() {
   });
   // 帳戶類型改變時重畫表單：信用卡／保險欄位只在選到該類型時出現
   $("#editor-fields").addEventListener("change", (event) => {
+    const sel = event.target;
+    if (sel.value === "__manage__") { sel.value = sel.dataset.prev || ""; openOptionsDialog(sel.dataset.manage); return; }
+    if (sel.dataset?.prev !== undefined) sel.dataset.prev = sel.value;
     if (state.editor?.kind !== "account" || event.target.name !== "類型") return;
     state.editor.draft = { ...state.editor.draft, ...collectEditorData() }; renderEditorFields();
   });
+  $("#options-dialog").addEventListener("click", (event) => {
+    if (event.target.closest("[data-options-close]")) $("#options-dialog").close();
+    if (event.target.closest("[data-options-add]")) void optionsAdd();
+    const del = event.target.closest("[data-options-delete]"); if (del) void optionsDelete(del.dataset.optionsDelete);
+  });
+  $("#options-dialog").addEventListener("keydown", (event) => { if (event.key === "Enter" && event.target.id === "options-new") { event.preventDefault(); void optionsAdd(); } });
   $("#new-currency-code").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); void addCurrency(); } });
   $("#editor-dialog").addEventListener("close", async () => { if ($("#editor-dialog").returnValue === "save") await saveEditor(); });
   $("#delete-button").addEventListener("click", async () => {

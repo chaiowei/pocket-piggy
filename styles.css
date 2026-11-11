@@ -43,3 +43,11 @@ dialog{width:min(620px,calc(100% - 24px));max-height:92vh;border:0;border-radius
 .return.gain{color:#36836a}.return.loss{color:var(--danger)}
 .return-line{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:8px;font-size:.86rem}
 @media(max-width:560px){.currency-add{grid-template-columns:1fr auto}.currency-add input{grid-column:1/-1}.receipt-preview{grid-column:auto}}
+
+/* 下拉選單的新增／刪除選項視窗 */
+.options-box header{display:flex;justify-content:space-between;align-items:center;padding:18px 22px 6px}.options-box header h2{margin:0;font-size:1.1rem}.options-box header button{background:transparent;font-size:1.4rem}
+.options-box footer{display:flex;justify-content:flex-end;padding:12px 22px 20px}
+.option-list{display:grid;gap:6px;margin-bottom:14px}.option-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:12px;background:#fff}
+.option-row small{margin-left:8px;color:var(--muted)}.option-row i{font-style:normal;color:var(--muted);font-size:.78rem}.option-row .danger{padding:.3rem .7rem;font-size:.78rem}
+.option-add{display:flex;gap:8px}.option-add input{flex:1;min-width:0;border:1px solid var(--border);border-radius:12px;padding:.6rem .8rem}.option-add select{border:1px solid var(--border);border-radius:12px;padding:.5rem}
+.options-box .dialog-content{overflow-x:hidden;max-height:58vh}
