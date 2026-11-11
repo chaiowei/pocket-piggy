@@ -16,6 +16,10 @@
 - 信用卡消費對帳（修改原交易）與一鍵建立繳卡費轉帳
 - 到期固定支出自動產生，使用固定同步編號防止重複
 - 自動匯率、台股／加密貨幣報價、每日淨資產快照與趨勢圖
+- 收據照片顯示在記帳表單下方供核對，並只保存在該裝置（不上傳 Notion）
+- 幣別內建 BTC／ETH／USDT／USDC，可在設定自行新增加密貨幣或法幣
+- 新增帳戶：國家為下拉選單；信用卡、保險欄位只在選到該類型時出現
+- 持倉顯示成本、未實現損益與報酬率
 
 ## 連線碼從哪裡來
 
@@ -34,6 +38,8 @@ n8n 基於安全不會顯示已儲存的舊值；忘記時直接換新值即可�
 - TWD／THB／USD／JPY：ExchangeRate-API 開放匯率，每日資料。
 - 台股：TWSE OpenAPI `STOCK_DAY_ALL`。
 - 加密貨幣：CoinGecko Simple Price；BTC／XBT／WBTC、ETH、SOL、USDT、USDC、USDD、DAI、BNB、XRP、DOGE、ADA 已有代號對照，單次批次抓取以降低額度消耗；公開額度不足時需 Demo API Key。
+- App 也會直接向 CoinGecko 取價，用於加密貨幣幣別的匯率，以及 n8n 沒回報價的加密貨幣持倉；清單外的代號以 CoinGecko 搜尋自動對照。
+- 報酬率＝數量 ×（最新價 − 平均成本）÷（數量 × 平均成本），平均成本不含手續費。
 - 美股：已保留 Finnhub 接口，需設定 API Key。
 - 泰國基金：已保留 Thai SEC 接口，需 Subscription Key 與基金 project id。
 
@@ -53,7 +59,7 @@ python -m http.server 4173
 
 ## Android APK
 
-套件 ID：`tw.chiaowei.pocketpiggy`，目前版本：`2.1.0`（versionCode `20100`）。
+套件 ID：`tw.chiaowei.pocketpiggy`，目前版本：`2.2.0`（versionCode `20200`）。
 
 ```powershell
 npm install
