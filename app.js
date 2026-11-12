@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.6.0-p3";
+const APP_VERSION = "2.6.1-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -142,6 +142,20 @@ function moneyTWD(twd, compact = false) {
   const digits = isCrypto(currency) ? 6 : compact || currency === "TWD" ? 0 : 2;
   return `${currencySymbol(currency)}${formatNumber(fromTWD(twd, currency), digits)}`;
 }
+// 這筆交易對「某個帳戶」的金額，一律換算成該帳戶自己的幣別（交易幣別 ≠ 帳戶幣別時依匯率換算）。
+// 例：用 TWD 賣出 USDT，錢進一個幣別是 USDT 的帳戶 → 26,416 TWD 要換成約 801 USDT，不能直接當 26,416 USDT。
+function sourceAmount(row, accountCurrency) {
+  const p = row.p || {};
+  if (p.收支 !== "轉帳" && number(p.實扣金額)) return number(p.實扣金額); // 信用卡帳單實扣（卡片幣別）
+  let amount = number(p.原幣金額) || number(p.成交數量) * number(p.成交單價); let currency = p.幣別 || accountCurrency;
+  if (!amount) { amount = number(p.台幣金額); currency = "TWD"; }
+  return currency === accountCurrency ? amount : fromTWD(toTWD(amount, currency), accountCurrency);
+}
+function feeInAccount(row, accountCurrency) {
+  const p = row.p || {}; const fee = number(p.手續費); if (!fee) return 0;
+  const currency = p.幣別 || accountCurrency;
+  return currency === accountCurrency ? fee : fromTWD(toTWD(fee, currency), accountCurrency);
+}
 function nativeAmount(record) {
   const p = record.p || {};
   return number(p.實扣金額 || p.原幣金額 || (number(p.成交數量) * number(p.成交單價)) || p.台幣金額);
@@ -161,8 +175,9 @@ function accountBalance(account) {
     if ((t.日期 || "") < openDate) continue;
     const source = hasRelation(t.帳戶, account.id);
     const target = hasRelation(t.轉入帳戶, account.id);
-    const amount = nativeAmount(row);
-    const fee = number(t.手續費);
+    const accountCurrency = p.幣別 || "TWD";
+    const amount = source ? sourceAmount(row, accountCurrency) : 0;
+    const fee = source ? feeInAccount(row, accountCurrency) : 0;
     if (source) {
       if (t.收支 === "收入") balance += amount;
       else if (t.收支 === "支出" || t.收支 === "轉帳") balance -= amount;
@@ -171,7 +186,7 @@ function accountBalance(account) {
       else if (t.收支 === "估值調整") balance += amount;
     }
     if (target && t.收支 === "轉帳") {
-      const targetAmount = t.實扣金額 ? number(t.實扣金額) : fromTWD(toTWD(t.原幣金額, t.幣別), p.幣別 || "TWD");
+      const targetAmount = t.實扣金額 ? number(t.實扣金額) : fromTWD(transactionTWD(row), accountCurrency);
       balance += targetAmount;
     }
   }
