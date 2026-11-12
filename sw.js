@@ -1,4 +1,4 @@
-const CACHE = "pocket-piggy-v2.5.4-p3";
+const CACHE = "pocket-piggy-v2.5.5-p3";
 const SHELL = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest", "icons/piggy.svg", "icons/piggy-maskable.svg"];
 
 self.addEventListener("install", (event) => {
@@ -11,7 +11,7 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
-  event.respondWith(fetch(event.request).then((response) => {
+  event.respondWith(fetch(event.request, { cache: "no-cache" }).then((response) => {
     const copy = response.clone(); caches.open(CACHE).then((cache) => cache.put(event.request, copy)); return response;
   }).catch(() => caches.match(event.request).then((cached) => cached || caches.match("index.html"))));
 });

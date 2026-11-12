@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.5.4-p3";
+const APP_VERSION = "2.5.5-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -968,7 +968,16 @@ async function init() {
         lastBack = now; toast("再滑一次返回才會離開小豬帳本"); guard();
       });
     }
-    if (!isNativeApp && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+    if (!isNativeApp && "serviceWorker" in navigator) {
+      // GitHub Pages 預設快取 10 分鐘：用 updateViaCache:none 與 no-cache 讓新版立刻生效；有新版時自動重新載入（有視窗開著就先提示）
+      const hadController = Boolean(navigator.serviceWorker.controller); let reloaded = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!hadController || reloaded) return;
+        if (document.querySelector("dialog[open]")) { toast("已有新版本，關閉視窗後重新整理即可更新"); return; }
+        reloaded = true; location.reload();
+      });
+      navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((registration) => registration.update()).catch(() => {});
+    }
     if (navigator.onLine && state.settings.token) void synchronize(false);
     const fxAge = Date.now() - Date.parse(state.settings.fxUpdatedAt || "1970-01-01");
     if (navigator.onLine && fxAge > 12 * 3600 * 1000) void refreshPrices();
