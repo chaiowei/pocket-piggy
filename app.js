@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.5.2-p3";
+const APP_VERSION = "2.5.3-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -557,9 +557,9 @@ function renderQueue() {
 }
 
 const field = (name, label, type = "text", options = {}) => ({ name, label, type, ...options });
-const accountFields = [field("名稱", "名稱"), field("類型", "類型", "select", { choices: () => optionList("type"), manage: "type" }), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("國家", "國家", "select", { choices: () => optionList("country"), manage: "country" }), field("期初餘額", "期初餘額", "number"), field("開帳日", "開帳日", "date"), field("結帳日", "信用卡結帳日", "number", { accountTypes: ["信用卡"] }), field("繳款日", "信用卡繳款日", "number", { accountTypes: ["信用卡"] }), field("已出帳金額", "已出帳金額", "number", { accountTypes: ["信用卡"] }), field("保險種類", "保險種類", "select", { choices: () => optionList("insurance"), manage: "insurance", accountTypes: ["保險"] }), field("計入資產", "保險是否計入資產", "select", { choices: ["計入資產", "不計入（純保障）"], accountTypes: ["保險"] }), field("保單價值", "保單價值", "number", { accountTypes: ["保險"] }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
-const holdingFields = [field("名稱", "名稱"), field("代號", "代號"), field("市場", "市場", "select", { choices: ["台股", "美股", "泰國基金", "加密貨幣", "其他"] }), field("計價幣別", "計價幣別", "select", { choices: currencyCodes, manage: "currency" }), field("數量", "數量", "number"), field("平均成本", "平均成本", "number"), field("最新價", "最新價（自動報價，可手動改）", "number"), field("帳戶", "所屬帳戶", "relation", { source: "accounts" }), field("定期定額", "定期定額", "checkbox"), field("每期金額", "每期金額", "number"), field("扣款日", "扣款日", "number"), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts" }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
-const recurringFields = [field("名稱", "名稱"), field("群組", "群組"), field("週期", "週期", "select", { choices: ["週", "月", "季", "年"] }), field("金額", "金額", "number"), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("性質", "性質", "select", { choices: ["支出", "轉入資產"] }), field("扣款日", "扣款日", "number"), field("扣款月份", "扣款月份", "number"), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts" }), field("下次扣款", "下次扣款", "date"), field("對應持倉", "對應持倉", "relation", { source: "holdings" }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
+const accountFields = [field("名稱", "名稱"), field("類型", "類型", "select", { choices: () => optionList("type"), manage: "type" }), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("國家", "國家", "select", { choices: () => optionList("country"), manage: "country" }), field("期初餘額", "期初餘額", "number"), field("開帳日", "開帳日", "date"), field("結帳日", "信用卡結帳日（每月幾號，1～31）", "number", { accountTypes: ["信用卡"], min: 1, max: 31, step: 1 }), field("繳款日", "信用卡繳款日（每月幾號，1～31）", "number", { accountTypes: ["信用卡"], min: 1, max: 31, step: 1 }), field("已出帳金額", "已出帳金額", "number", { accountTypes: ["信用卡"] }), field("保險種類", "保險種類", "select", { choices: () => optionList("insurance"), manage: "insurance", accountTypes: ["保險"] }), field("計入資產", "保險是否計入資產", "select", { choices: ["計入資產", "不計入（純保障）"], accountTypes: ["保險"] }), field("保單價值", "保單價值", "number", { accountTypes: ["保險"] }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
+const holdingFields = [field("名稱", "名稱"), field("代號", "代號"), field("市場", "市場", "select", { choices: ["台股", "美股", "泰國基金", "加密貨幣", "其他"] }), field("計價幣別", "計價幣別", "select", { choices: currencyCodes, manage: "currency" }), field("數量", "數量", "number"), field("平均成本", "平均成本", "number"), field("最新價", "最新價（自動報價，可手動改）", "number"), field("帳戶", "所屬帳戶", "relation", { source: "accounts" }), field("定期定額", "定期定額", "checkbox"), field("每期金額", "每期金額", "number"), field("扣款日", "扣款日（每月幾號，1～31）", "number", { min: 1, max: 31, step: 1 }), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts" }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
+const recurringFields = [field("名稱", "名稱"), field("群組", "群組"), field("週期", "週期", "select", { choices: ["週", "月", "季", "年"] }), field("金額", "金額", "number"), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("性質", "性質", "select", { choices: ["支出", "轉入資產"] }), field("扣款日", "扣款日（每月幾號，1～31）", "number", { min: 1, max: 31, step: 1 }), field("扣款月份", "扣款月份（1～12）", "number", { min: 1, max: 12, step: 1 }), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts" }), field("下次扣款", "下次扣款", "date"), field("對應持倉", "對應持倉", "relation", { source: "holdings" }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
 const transactionFields = [field("收支", "類型", "hidden"), field("店家／項目", "店家／項目"), field("日期", "日期", "date"), field("原幣金額", "金額", "number"), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("帳戶", "帳戶", "relation", { source: "accounts" }), field("分類", "分類", "select", { choices: ["餐飲", "交通", "購物", "居住", "娛樂", "醫療", "旅遊", "薪資", "投資", "保險", "其他"] }), field("狀態", "狀態", "select", { choices: ["預估", "已入帳", "已出帳", "已繳款"] }), field("轉入帳戶", "轉入帳戶", "relation", { source: "accounts", types: ["轉帳"] }), field("實扣金額", "實扣金額", "number", { types: ["轉帳", "支出"] }), field("持倉", "持倉", "relation", { source: "holdings", types: ["投資買入", "投資賣出"] }), field("成交數量", "成交數量", "number", { types: ["投資買入", "投資賣出"] }), field("成交單價", "成交單價", "number", { types: ["投資買入", "投資賣出"] }), field("手續費", "手續費", "number", { types: ["投資買入", "投資賣出"] }), field("定期定額", "定期定額", "checkbox", { types: ["投資買入"] }), field("備註", "備註", "textarea", { wide: true })];
 
 function openEditor(kind, record = null, draft = {}) {
@@ -612,6 +612,10 @@ function editorHint(kind, data, record) {
   else if (kind === "holding" && !record) text = "<strong>已經持有的股票／加密貨幣</strong>　直接在這裡填目前的「數量」與「平均成本」（每單位買進均價），不用補記買入交易，也不會算成支出。之後再加碼才用「記一筆 → 投資買入」。";
   return (kind === "holding" ? holdingPicker(data) : "") + duplicateHint(kind, data) + (text ? `<div class="receipt-tools">${text}</div>` : "");
 }
+function numberAttrs(f) {
+  if (f.type !== "number") return "";
+  return `step="${f.step ?? "any"}"${f.min !== undefined ? ` min="${f.min}"` : ""}${f.max !== undefined ? ` max="${f.max}"` : ""}${f.step ? ' inputmode="numeric"' : ""}`;
+}
 function renderField(f, value) {
   const className = `${f.wide ? "wide " : ""}${f.type === "checkbox" ? "check" : ""}`;
   if (f.type === "select") {
@@ -628,7 +632,7 @@ function renderField(f, value) {
   if (f.type === "checkbox") return `<label class="${className}"><input type="checkbox" name="${esc(f.name)}" ${value ?? f.default ? "checked" : ""}>${esc(f.label)}</label>`;
   if (f.type === "textarea") return `<label class="${className}">${esc(f.label)}<textarea name="${esc(f.name)}" rows="3">${esc(value || "")}</textarea></label>`;
   const fallback = f.type === "date" ? todayISO() : "";
-  return `<label class="${className}">${esc(f.label)}<input name="${esc(f.name)}" type="${f.type}" ${f.type === "number" ? 'step="any"' : ""} value="${esc(value ?? fallback)}"></label>`;
+  return `<label class="${className}">${esc(f.label)}<input name="${esc(f.name)}" type="${f.type}" ${numberAttrs(f)} value="${esc(value ?? fallback)}"></label>`;
 }
 function collectEditorData() {
   const form = $("#editor-form"); const data = {};
@@ -641,7 +645,10 @@ function collectEditorData() {
   return data;
 }
 async function saveEditor() {
-  const { kind, record } = state.editor; const data = collectEditorData(); const table = ({ account: "accounts", holding: "holdings", recurring: "recurring", transaction: "transactions" })[kind];
+  const { kind, record } = state.editor; const data = collectEditorData();
+  for (const [name, max] of [["結帳日", 31], ["繳款日", 31], ["扣款日", 31], ["扣款月份", 12]]) {
+    if (data[name] !== undefined && data[name] !== null && !(Number.isInteger(data[name]) && data[name] >= 1 && data[name] <= max)) { data[name] = null; toast(`${name}要填 1～${max} 的整數，已清除請重填`); }
+  } const table = ({ account: "accounts", holding: "holdings", recurring: "recurring", transaction: "transactions" })[kind];
   if (kind === "transaction") {
     const account = state.accounts.find((x) => hasRelation(data.帳戶, x.id));
     let twd = toTWD(data.原幣金額 || number(data.成交數量) * number(data.成交單價), data.幣別 || "TWD");
@@ -727,13 +734,19 @@ function openCardPayment(card) {
   openEditor("transaction", null, { 收支: "轉帳", "店家／項目": `繳${card.p?.名稱 || "信用卡"}卡費`, 日期: todayISO(), 原幣金額: amount, 幣別: card.p?.幣別 || "TWD", 轉入帳戶: [card.id], 狀態: "已繳款", 備註: "信用卡繳款是轉帳，不重複列支出" });
 }
 
-function addPeriod(dateText, period) {
-  const d = new Date(`${dateText}T12:00:00`); if (period === "週") d.setDate(d.getDate() + 7); else if (period === "季") d.setMonth(d.getMonth() + 3); else if (period === "年") d.setFullYear(d.getFullYear() + 1); else d.setMonth(d.getMonth() + 1); return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" });
+function addPeriod(dateText, period, anchorDay = 0) {
+  if (period === "週") { const d = new Date(`${dateText}T12:00:00`); d.setDate(d.getDate() + 7); return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" }); }
+  const [y, m, d0] = String(dateText).split("-").map(Number);
+  const total = y * 12 + (m - 1) + (period === "季" ? 3 : period === "年" ? 12 : 1);
+  const ny = Math.floor(total / 12); const nm = total % 12;
+  const lastDay = new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate();
+  const day = Math.min(anchorDay > 0 ? anchorDay : d0, lastDay);
+  return `${ny}-${String(nm + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 async function generateRecurringTransactions() {
   const today = todayISO(); let created = 0;
   for (const rule of state.recurring.filter((row) => row.p?.啟用 !== false && row.p?.下次扣款 && row.p.下次扣款 <= today)) {
-    let due = rule.p.下次扣款; let guard = 0;
+    let due = rule.p.下次扣款; let guard = 0; const anchor = number(rule.p?.扣款日) || Number(String(rule.p.下次扣款).slice(8, 10));
     while (due <= today && guard++ < 24) {
       const syncId = `recurring-${syncIdFor(rule)}-${due}`; const exists = state.transactions.some((row) => row.p?.同步編號 === syncId || (row.p?.日期 === due && hasRelation(row.p?.固定支出, rule.id)));
       if (!exists) {
@@ -741,7 +754,7 @@ async function generateRecurringTransactions() {
         const isAsset = rule.p?.性質 === "轉入資產" && target.length;
         await saveRecord("transactions", { 同步編號: syncId, 收支: isAsset ? "轉帳" : "支出", "店家／項目": rule.p?.名稱 || "固定支出", 日期: due, 原幣金額: number(rule.p?.金額), 幣別: rule.p?.幣別 || "TWD", 帳戶: asArray(rule.p?.扣款帳戶), 轉入帳戶: isAsset ? target : [], 固定支出: [rule.id], 分類: rule.p?.群組 || (isAsset ? "投資" : "其他"), 狀態: "已入帳", 備註: `${rule.p?.週期 || "月"}期自動產生` }); created += 1;
       }
-      due = addPeriod(due, rule.p?.週期 || "月");
+      due = addPeriod(due, rule.p?.週期 || "月", anchor);
     }
     if (due !== rule.p.下次扣款) await saveRecord("recurring", { 下次扣款: due }, rule);
   }
