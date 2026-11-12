@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.5.5-p3";
+const APP_VERSION = "2.5.6-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -222,7 +222,22 @@ async function saveRecord(table, data, existing = null) {
   if (navigator.onLine && state.settings.token) void pushOutbox();
   return record;
 }
+// 刪除（或記錯重記）一筆投資買賣：把當初對持倉造成的改變退回去。帳戶餘額是由交易算出來的，刪掉交易就自動回到原來的樣子。
+async function revertHoldingFromTrade(t) {
+  if (!t || !String(t.收支 || "").startsWith("投資") || !asArray(t.持倉).length) return;
+  const holding = state.holdings.find((x) => hasRelation(t.持倉, x.id)); if (!holding) return;
+  const qty = number(t.成交數量); const price = number(t.成交單價);
+  let nextQty = number(holding.p?.數量); let nextAvg = number(holding.p?.平均成本);
+  if (t.收支 === "投資賣出") nextQty += qty;
+  else {
+    const remain = nextQty - qty;
+    if (remain > 0) nextAvg = Math.max(0, ((nextQty * nextAvg) - (qty * price)) / remain);
+    nextQty = Math.max(0, remain);
+  }
+  await saveRecord("holdings", { 數量: roundedNumber(nextQty, 8), 平均成本: roundedNumber(nextAvg, 8) }, holding);
+}
 async function removeRecord(table, record) {
+  if (table === "transactions") await revertHoldingFromTrade(record.p);
   const syncId = syncIdFor(record);
   if (table === "transactions") await deleteOne("meta", `receipt-${syncId}`);
   if (record.id.startsWith("local-")) {
@@ -918,7 +933,7 @@ function bindEvents() {
   $("#new-currency-code").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); void addCurrency(); } });
   $("#editor-dialog").addEventListener("close", async () => { if ($("#editor-dialog").returnValue === "save") await saveEditor(); });
   $("#delete-button").addEventListener("click", async () => {
-    const { kind, record } = state.editor; if (!record || !confirm("確定刪除這筆資料？離線時會先排入待送清單。")) return;
+    const { kind, record } = state.editor; if (!record) return; const isTrade = kind === "transaction" && String(record.p?.收支 || "").startsWith("投資"); if (!confirm(isTrade ? "確定刪除這筆投資買賣？刪除後持倉的數量會還原，帳戶的錢也會回到原來的樣子。離線時會先排入待送清單。" : "確定刪除這筆資料？離線時會先排入待送清單。")) return;
     await removeRecord(({ account: "accounts", holding: "holdings", recurring: "recurring", transaction: "transactions" })[kind], record); $("#editor-dialog").close(); toast("已刪除");
   });
   $("#settings-form").addEventListener("submit", async (event) => {
