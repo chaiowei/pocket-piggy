@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.5.3-p3";
+const APP_VERSION = "2.5.4-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -440,7 +440,7 @@ function renderHoldings() {
     const returnLine = r
       ? `<div class="return-line"><span class="item-meta">成本 ${nativeMoney(r.cost, currency)}</span><strong class="return ${r.pnl >= 0 ? "gain" : "loss"}">${signed(nativeMoney(Math.abs(r.pnl), currency), r.pnl)}（${percentText(r.pct)}）</strong></div>`
       : `<div class="return-line"><span class="item-meta">填入數量、平均成本與最新價後顯示報酬率</span></div>`;
-    return `<article class="holding-card" data-edit="holding" data-id="${esc(row.id)}"><header><div><h3>${esc(p.名稱 || "未命名")}</h3><span class="item-meta">${esc(p.代號 || p.市場 || "")}</span></div><span>${row.pending ? '<span class="pending-badge">待送</span>' : iconFor(p.市場) === "🐷" ? "📈" : iconFor(p.市場)}</span></header><div class="price">${moneyTWD(holdingTWD(row))}</div><div class="item-meta">${formatNumber(p.數量, 8)} × ${nativeMoney(p.最新價 ?? p.平均成本, currency)}（均價 ${nativeMoney(p.平均成本, currency)}）</div>${returnLine}<div class="price-meta"><span class="${p.報價來源 ? "price-ok" : "price-warn"}">${esc(p.報價來源 || "手動價格")}</span><span class="item-meta">${esc(String(p.價格更新時間 || "尚未更新").slice(0, 16).replace("T", " "))}</span></div></article>`;
+    return `<article class="holding-card" data-edit="holding" data-id="${esc(row.id)}"><header><div><h3>${esc(p.名稱 || "未命名")}</h3><span class="item-meta">${esc([p.代號 || p.市場 || "", holdingPlatform(row)].filter(Boolean).join(" · "))}</span></div><span>${row.pending ? '<span class="pending-badge">待送</span>' : iconFor(p.市場) === "🐷" ? "📈" : iconFor(p.市場)}</span></header><div class="price">${moneyTWD(holdingTWD(row))}</div><div class="item-meta">${formatNumber(p.數量, 8)} × ${nativeMoney(p.最新價 ?? p.平均成本, currency)}（均價 ${nativeMoney(p.平均成本, currency)}）</div>${returnLine}<div class="price-meta"><span class="${p.報價來源 ? "price-ok" : "price-warn"}">${esc(p.報價來源 || "手動價格")}</span><span class="item-meta">${esc(String(p.價格更新時間 || "尚未更新").slice(0, 16).replace("T", " "))}</span></div></article>`;
   }).join("") : "尚無持倉";
 }
 function monthlyEquivalent(p) { const amount = toTWD(p.金額, p.幣別); return p.週期 === "年" ? amount / 12 : p.週期 === "季" ? amount / 3 : p.週期 === "週" ? amount * 52 / 12 : amount; }
@@ -616,6 +616,17 @@ function numberAttrs(f) {
   if (f.type !== "number") return "";
   return `step="${f.step ?? "any"}"${f.min !== undefined ? ` min="${f.min}"` : ""}${f.max !== undefined ? ` max="${f.max}"` : ""}${f.step ? ' inputmode="numeric"' : ""}`;
 }
+function holdingPlatform(row) {
+  const id = asArray(row?.p?.帳戶)[0]; const account = id ? state.accounts.find((a) => a.id === id) : null;
+  return account?.p?.名稱 || "";
+}
+function relationLabel(source, row, rows) {
+  if (source !== "holdings") return row.p?.名稱 || row.p?.["店家／項目"] || row.id;
+  const platform = holdingPlatform(row); const base = row.p?.名稱 || row.id;
+  let label = platform ? `${base} · ${platform}` : `${base} · （未指定平台）`;
+  if (rows.some((x) => x !== row && (x.p?.名稱 || x.id) === base && holdingPlatform(x) === platform)) label += `（${row.p?.代號 || row.id.slice(-4)}）`;
+  return label;
+}
 function renderField(f, value) {
   const className = `${f.wide ? "wide " : ""}${f.type === "checkbox" ? "check" : ""}`;
   if (f.type === "select") {
@@ -627,7 +638,7 @@ function renderField(f, value) {
   }
   if (f.type === "relation") {
     const rows = state[f.source] || []; const selected = asArray(value)[0] || "";
-    return `<label class="${className}">${esc(f.label)}<select name="${esc(f.name)}"><option value="">無</option>${rows.map((row) => `<option value="${esc(row.id)}" ${selected === row.id ? "selected" : ""}>${esc(row.p?.名稱 || row.p?.["店家／項目"] || row.id)}</option>`).join("")}</select></label>`;
+    return `<label class="${className}">${esc(f.label)}<select name="${esc(f.name)}"><option value="">無</option>${rows.map((row) => `<option value="${esc(row.id)}" ${selected === row.id ? "selected" : ""}>${esc(relationLabel(f.source, row, rows))}</option>`).join("")}</select></label>`;
   }
   if (f.type === "checkbox") return `<label class="${className}"><input type="checkbox" name="${esc(f.name)}" ${value ?? f.default ? "checked" : ""}>${esc(f.label)}</label>`;
   if (f.type === "textarea") return `<label class="${className}">${esc(f.label)}<textarea name="${esc(f.name)}" rows="3">${esc(value || "")}</textarea></label>`;
@@ -844,7 +855,7 @@ function renderWizard() {
   const el = $("#wizard-content");
   if (state.wizardStep === 0) el.innerHTML = `<div class="wizard-step"><h3>選擇開帳日</h3><p>這一天以前的交易不用補；帳戶從期初餘額開始算。</p><label>開帳日<input id="wizard-date" type="date" value="${esc(state.wizardDate)}"></label></div>`;
   else if (state.wizardStep === 1) el.innerHTML = `<div class="wizard-step"><h3>逐一確認帳戶</h3><p>信用卡填目前未繳總額並加負號；保險填解約金。</p><div class="wizard-rows">${state.accounts.map((row) => `<div class="wizard-row"><div><strong>${esc(row.p?.名稱 || "未命名")}</strong><small>${esc(row.p?.類型 || "帳戶")} · ${esc(row.p?.幣別 || "TWD")}</small></div><input data-wizard-account="${esc(row.id)}" type="number" step="any" value="${esc(row.p?.期初餘額 ?? (row.p?.類型 === "信用卡" ? 0 : ""))}" placeholder="期初餘額"></div>`).join("")}</div></div>`;
-  else if (state.wizardStep === 2) el.innerHTML = `<div class="wizard-step"><h3>填寫持倉數量與成本</h3><div class="wizard-rows">${state.holdings.map((row) => `<div class="wizard-row"><div><strong>${esc(row.p?.名稱 || "未命名")}</strong><small>${esc(row.p?.代號 || row.p?.市場 || "")}</small></div><div><input data-wizard-holding-qty="${esc(row.id)}" type="number" step="any" value="${esc(row.p?.數量 ?? "")}" placeholder="數量"><input data-wizard-holding-avg="${esc(row.id)}" type="number" step="any" value="${esc(row.p?.平均成本 ?? "")}" placeholder="平均成本"></div></div>`).join("") || "目前沒有持倉，可稍後新增"}</div></div>`;
+  else if (state.wizardStep === 2) el.innerHTML = `<div class="wizard-step"><h3>填寫持倉數量與成本</h3><div class="wizard-rows">${state.holdings.map((row) => `<div class="wizard-row"><div><strong>${esc(row.p?.名稱 || "未命名")}</strong><small>${esc([row.p?.代號 || row.p?.市場 || "", holdingPlatform(row)].filter(Boolean).join(" · "))}</small></div><div><input data-wizard-holding-qty="${esc(row.id)}" type="number" step="any" value="${esc(row.p?.數量 ?? "")}" placeholder="數量"><input data-wizard-holding-avg="${esc(row.id)}" type="number" step="any" value="${esc(row.p?.平均成本 ?? "")}" placeholder="平均成本"></div></div>`).join("") || "目前沒有持倉，可稍後新增"}</div></div>`;
   else el.innerHTML = `<div class="wizard-step empty-state"><div><div style="font-size:4rem">🐷✨</div><h3>準備完成</h3><p>按「完成」後，資料會先安全存到本機；有連線碼時再自動同步。</p></div></div>`;
 }
 async function wizardNext() {
