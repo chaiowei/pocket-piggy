@@ -11,6 +11,7 @@ const files = [
   'manifest.webmanifest',
   'sw.js',
   'icons',
+  'data',
 ];
 
 rmSync(output, { recursive: true, force: true });

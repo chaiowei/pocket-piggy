@@ -56,3 +56,21 @@ dialog{width:min(620px,calc(100% - 24px));max-height:92vh;border:0;border-radius
 .coin-results{display:grid;gap:6px;margin-top:8px}.coin-option{display:flex;align-items:center;gap:10px;text-align:left;padding:.55rem .75rem;border-radius:12px;border:1px solid var(--border);background:#fff;color:var(--ink)}
 .coin-option small{color:var(--muted)}.receipt-tools.warn{background:#fff3dc;color:#7a5a1a}.receipt-tools code{background:#fff;padding:1px 6px;border-radius:6px}
 #editor-dialog footer{flex-wrap:wrap;justify-content:flex-end}#editor-dialog footer button{flex:1 1 auto}#editor-dialog footer button[value=cancel]{flex:0 0 auto}
+
+/* 持倉：依平台分組、卡片縮小 */
+.holding-groups{display:grid;gap:18px}.holding-group .group-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:0 2px 8px}
+.holding-group h3{margin:0;font-size:1.05rem}.holding-group h3 small{margin-left:8px;color:var(--muted);font-weight:500;font-size:.78rem}
+.group-sum{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.group-sum b{font-size:1.05rem}.group-sum small.return{font-size:.8rem}
+.card-grid.compact{grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.holding-card.compact{padding:11px 13px;border-radius:15px;box-shadow:none;display:grid;gap:3px}
+.holding-card.compact .hc-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.holding-card.compact .hc-name{min-width:0;display:grid}.holding-card.compact .hc-name b{font-size:.93rem;line-height:1.25;overflow-wrap:anywhere}
+.holding-card.compact small,.holding-card.compact .hc-line,.holding-card.compact .hc-foot{font-size:.75rem;color:var(--muted)}
+.holding-card.compact .hc-value{font-weight:800;font-size:1.02rem;white-space:nowrap}
+.holding-card.compact .hc-line{display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap}
+.holding-card.compact .hc-line strong{font-size:.76rem}
+.holding-card.compact .hc-foot{display:flex;justify-content:space-between;gap:6px;font-size:.68rem}
+/* 開帳小按鈕（只在總覽） */
+.mini-actions{display:flex;justify-content:flex-end;margin-bottom:8px}
+.mini-button{background:transparent;border:1px solid var(--border);color:var(--muted);padding:.3rem .7rem;border-radius:999px;font-size:.76rem}
+.mini-button.attention{border-color:var(--pink);color:var(--pink-dark);font-weight:700}

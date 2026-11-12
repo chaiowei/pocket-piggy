@@ -36,12 +36,8 @@
         </div>
       </header>
 
-      <section id="open-warning" class="notice hidden" role="status">
-        <div><strong>開帳還沒完成</strong><p>先填期初餘額，總覽才會準確。</p></div>
-        <button data-action="wizard">開始開帳</button>
-      </section>
-
       <section data-view="overview" class="view active">
+        <div class="mini-actions"><button id="setup-mini" class="mini-button" data-action="wizard" title="第一次使用或之後要補填期初餘額時按這裡">🧾 開帳／期初餘額</button></div>
         <div class="hero-card">
           <div>
             <p>淨資產</p>
@@ -86,7 +82,7 @@
 
       <section data-view="investments" class="view">
         <div class="section-actions"><div id="holding-total" class="section-total">總現值 NT$0</div><div class="button-row"><button class="secondary" data-action="prices">↻ 更新報價</button><button data-action="holding">＋ 新增持倉</button></div></div>
-        <div id="holding-list" class="card-grid empty-state">尚無持倉</div>
+        <div id="holding-list" class="holding-groups empty-state">尚無持倉</div>
       </section>
 
       <section data-view="more" class="view">

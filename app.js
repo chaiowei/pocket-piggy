@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.5.6-p3";
+const APP_VERSION = "2.6.0-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -381,7 +381,7 @@ function renderHeader() {
   $("#today-label").textContent = new Intl.DateTimeFormat("zh-TW", { dateStyle: "full", timeZone: "Asia/Taipei" }).format(new Date());
   $("#version-label").textContent = APP_VERSION;
   const incomplete = state.accounts.some((a) => a.p?.啟用 !== false && (!a.p?.開帳日 || a.p?.期初餘額 === null || a.p?.期初餘額 === undefined));
-  $("#open-warning").classList.toggle("hidden", !state.accounts.length || !incomplete);
+  $("#setup-mini").classList.toggle("attention", Boolean(state.accounts.length && incomplete));
 }
 function renderOverview() {
   const t = totals();
@@ -444,19 +444,28 @@ function renderAccounts() {
   el.innerHTML = groups.size ? [...groups.entries()].map(([type, rows]) => `<section><h2 class="group-title">${esc(type)}</h2><div class="group-card">${rows.map((row) => `<div class="account-row" data-edit="account" data-id="${esc(row.id)}"><div class="item-main"><span class="item-icon">${iconFor(type)}</span><div><div class="account-name">${esc(row.p?.名稱 || "未命名")}${row.pending ? '<span class="pending-badge">待送</span>' : ""}</div><div class="item-meta">${esc(row.p?.幣別 || "TWD")}${type === "信用卡" ? ` · 結帳 ${esc(row.p?.結帳日 || "－")} 日／繳款 ${esc(row.p?.繳款日 || "－")} 日` : ""}</div></div></div><div class="account-balance">${moneyTWD(accountTWD(row))}<div class="item-meta">${nativeMoney(accountBalance(row), row.p?.幣別 || "TWD")}</div>${type === "信用卡" ? `<div class="account-actions"><button type="button" class="secondary" data-card-action="reconcile" data-id="${esc(row.id)}">對帳</button><button type="button" data-card-action="pay" data-id="${esc(row.id)}">繳卡費</button></div>` : ""}</div></div>`).join("")}</div></section>`).join("") : "尚無帳戶";
 }
 function renderHoldings() {
-  const total = state.holdings.reduce((sum, row) => sum + holdingTWD(row), 0);
-  let cost = 0; let value = 0;
-  for (const row of state.holdings) { const r = holdingReturn(row); if (r) { cost += toTWD(r.cost, row.p?.計價幣別 || "TWD"); value += toTWD(r.value, row.p?.計價幣別 || "TWD"); } }
-  const pnl = value - cost;
-  $("#holding-total").innerHTML = `總現值 ${moneyTWD(total)}${cost > 0 ? `<small class="return ${pnl >= 0 ? "gain" : "loss"}">未實現損益 ${signed(moneyTWD(Math.abs(pnl)), pnl)}（${percentText(pnl / cost * 100)}）</small>` : ""}`;
+  const sumReturn = (rows) => {
+    let cost = 0; let value = 0; let total = 0;
+    for (const row of rows) { total += holdingTWD(row); const r = holdingReturn(row); if (r) { const cur = row.p?.計價幣別 || "TWD"; cost += toTWD(r.cost, cur); value += toTWD(r.value, cur); } }
+    return { total, cost, pnl: value - cost };
+  };
+  const returnText = (x) => x.cost > 0 ? `<small class="return ${x.pnl >= 0 ? "gain" : "loss"}">損益 ${signed(moneyTWD(Math.abs(x.pnl)), x.pnl)}（${percentText(x.pnl / x.cost * 100)}）</small>` : "";
+  const all = sumReturn(state.holdings);
+  $("#holding-total").innerHTML = `總現值 ${moneyTWD(all.total)}${all.cost > 0 ? `<small class="return ${all.pnl >= 0 ? "gain" : "loss"}">未實現損益 ${signed(moneyTWD(Math.abs(all.pnl)), all.pnl)}（${percentText(all.pnl / all.cost * 100)}）</small>` : ""}`;
   const el = $("#holding-list"); el.classList.toggle("empty-state", !state.holdings.length);
-  el.innerHTML = state.holdings.length ? state.holdings.map((row) => {
+  if (!state.holdings.length) { el.innerHTML = "尚無持倉"; return; }
+  const groups = new Map();
+  for (const row of state.holdings) { const key = holdingPlatform(row) || "未指定平台"; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row); }
+  const card = (row) => {
     const p = row.p || {}; const currency = p.計價幣別 || "TWD"; const r = holdingReturn(row);
     const returnLine = r
-      ? `<div class="return-line"><span class="item-meta">成本 ${nativeMoney(r.cost, currency)}</span><strong class="return ${r.pnl >= 0 ? "gain" : "loss"}">${signed(nativeMoney(Math.abs(r.pnl), currency), r.pnl)}（${percentText(r.pct)}）</strong></div>`
-      : `<div class="return-line"><span class="item-meta">填入數量、平均成本與最新價後顯示報酬率</span></div>`;
-    return `<article class="holding-card" data-edit="holding" data-id="${esc(row.id)}"><header><div><h3>${esc(p.名稱 || "未命名")}</h3><span class="item-meta">${esc([p.代號 || p.市場 || "", holdingPlatform(row)].filter(Boolean).join(" · "))}</span></div><span>${row.pending ? '<span class="pending-badge">待送</span>' : iconFor(p.市場) === "🐷" ? "📈" : iconFor(p.市場)}</span></header><div class="price">${moneyTWD(holdingTWD(row))}</div><div class="item-meta">${formatNumber(p.數量, 8)} × ${nativeMoney(p.最新價 ?? p.平均成本, currency)}（均價 ${nativeMoney(p.平均成本, currency)}）</div>${returnLine}<div class="price-meta"><span class="${p.報價來源 ? "price-ok" : "price-warn"}">${esc(p.報價來源 || "手動價格")}</span><span class="item-meta">${esc(String(p.價格更新時間 || "尚未更新").slice(0, 16).replace("T", " "))}</span></div></article>`;
-  }).join("") : "尚無持倉";
+      ? `<div class="hc-line"><span>成本 ${nativeMoney(r.cost, currency)}</span><strong class="return ${r.pnl >= 0 ? "gain" : "loss"}">${signed(nativeMoney(Math.abs(r.pnl), currency), r.pnl)}（${percentText(r.pct)}）</strong></div>`
+      : `<div class="hc-line"><span>填入數量、平均成本後顯示報酬率</span></div>`;
+    const icon = row.pending ? '<span class="pending-badge">待送</span>' : "";
+    return `<article class="holding-card compact" data-edit="holding" data-id="${esc(row.id)}"><div class="hc-top"><div class="hc-name"><b>${esc(p.名稱 || "未命名")}</b><small>${esc(p.代號 || p.市場 || "")}</small></div><div class="hc-value">${icon}${moneyTWD(holdingTWD(row))}</div></div><div class="hc-line"><span>${formatNumber(p.數量, 8)} × ${nativeMoney(p.最新價 ?? p.平均成本, currency)}</span></div>${returnLine}<div class="hc-foot"><span class="${p.報價來源 ? "price-ok" : "price-warn"}">${esc(p.報價來源 || "手動價格")}</span><span>${esc(String(p.價格更新時間 || "尚未更新").slice(0, 16).replace("T", " "))}</span></div></article>`;
+  };
+  el.innerHTML = [...groups.entries()].map(([platform, rows]) => ({ platform, rows: rows.sort((a, b) => holdingTWD(b) - holdingTWD(a)), ...sumReturn(rows) })).sort((a, b) => b.total - a.total)
+    .map((g) => `<section class="holding-group"><header class="group-head"><h3>${esc(g.platform)}<small>${g.rows.length} 檔</small></h3><div class="group-sum"><b>${moneyTWD(g.total)}</b>${returnText(g)}</div></header><div class="card-grid compact">${g.rows.map(card).join("")}</div></section>`).join("");
 }
 function monthlyEquivalent(p) { const amount = toTWD(p.金額, p.幣別); return p.週期 === "年" ? amount / 12 : p.週期 === "季" ? amount / 3 : p.週期 === "週" ? amount * 52 / 12 : amount; }
 function renderRecurring() {
@@ -548,8 +557,35 @@ function pickCoin(button) {
   draft.代號 = `cg:${d.coinId}`; draft.名稱 = `${d.coinName} (${d.coinSymbol})`; draft.市場 = "加密貨幣"; if (!draft.計價幣別) draft.計價幣別 = "USD";
   state.editor.draft = draft; renderEditorFields(); toast(`已選擇 ${d.coinName}`);
 }
+let twStocksCache = null;
+async function loadTwStocks() {
+  if (twStocksCache) return twStocksCache;
+  try {
+    const response = await fetch("https://chaiowei.github.io/pocket-piggy/data/tw-stocks.json", { cache: "no-cache" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    twStocksCache = await response.json(); await putOne("meta", { id: "tw-stocks", data: twStocksCache });
+  } catch (error) { twStocksCache = (await getOne("meta", "tw-stocks"))?.data || null; }
+  return twStocksCache;
+}
+function twStockPrice(list, code) { const row = list?.rows?.find((x) => x[0] === String(code || "").trim().toUpperCase()); return row ? { code: row[0], name: row[1], price: row[2], board: row[3] } : null; }
+async function searchTwStocks(query) {
+  const box = $("#stock-results"); if (!box) return;
+  const q = String(query || "").trim().toUpperCase(); if (!q) { box.innerHTML = ""; return; }
+  box.innerHTML = '<div class="source-note">搜尋中…</div>';
+  const list = await loadTwStocks();
+  if (!list) { box.innerHTML = '<div class="source-note">目前讀不到台股清單（需要連網一次）。</div>'; return; }
+  const hits = list.rows.filter((r) => r[0].startsWith(q) || r[1].toUpperCase().includes(q)).slice(0, 10);
+  box.innerHTML = hits.length ? hits.map((r) => `<button type="button" class="coin-option" data-stock-code="${esc(r[0])}"><span><b>${esc(r[1])}</b> <small>${esc(r[0])} · ${r[3] === "櫃" ? "上櫃" : "上市"}${r[2] ? ` · 收盤 ${esc(r[2])}` : ""}</small></span></button>`).join("") : '<div class="source-note">找不到。可以輸入代號（例如 3293、006208）或名稱的一部分（例如 台積）。</div>';
+}
+function pickTwStock(button) {
+  const list = twStocksCache; const hit = twStockPrice(list, button.dataset.stockCode); if (!hit) return;
+  const draft = { ...state.editor.draft, ...collectEditorData(), 市場: "台股", 代號: hit.code, 名稱: `${hit.name} (${hit.code})`, 計價幣別: "TWD" };
+  if (hit.price) { draft.最新價 = hit.price; draft.報價來源 = hit.board === "櫃" ? "櫃買中心" : "證交所"; draft.價格更新時間 = nowISO(); }
+  state.editor.draft = draft; renderEditorFields(); toast(`已選擇 ${hit.name}`);
+}
 async function verifySymbol() {
   const out = $("#verify-status"); const data = collectEditorData(); const symbol = String(data.代號 || "").trim();
+  if (data.市場 === "台股") { const hit = twStockPrice(await loadTwStocks(), symbol); if (hit) { state.editor.draft = { ...state.editor.draft, ...data, 名稱: data.名稱 || `${hit.name} (${hit.code})`, 最新價: hit.price ?? data.最新價, 報價來源: hit.board === "櫃" ? "櫃買中心" : "證交所" }; renderEditorFields(); return; } }
   if (!symbol) { if (out) out.textContent = "請先填代號"; return; }
   if (!state.settings.token) { if (out) out.textContent = "需要先在「更多 → 設定」輸入連線碼"; return; }
   if (out) out.textContent = "查詢中…";
@@ -573,9 +609,9 @@ function renderQueue() {
 
 const field = (name, label, type = "text", options = {}) => ({ name, label, type, ...options });
 const accountFields = [field("名稱", "名稱"), field("類型", "類型", "select", { choices: () => optionList("type"), manage: "type" }), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("國家", "國家", "select", { choices: () => optionList("country"), manage: "country" }), field("期初餘額", "期初餘額", "number"), field("開帳日", "開帳日", "date"), field("結帳日", "信用卡結帳日（每月幾號，1～31）", "number", { accountTypes: ["信用卡"], min: 1, max: 31, step: 1 }), field("繳款日", "信用卡繳款日（每月幾號，1～31）", "number", { accountTypes: ["信用卡"], min: 1, max: 31, step: 1 }), field("已出帳金額", "已出帳金額", "number", { accountTypes: ["信用卡"] }), field("保險種類", "保險種類", "select", { choices: () => optionList("insurance"), manage: "insurance", accountTypes: ["保險"] }), field("計入資產", "保險是否計入資產", "select", { choices: ["計入資產", "不計入（純保障）"], accountTypes: ["保險"] }), field("保單價值", "保單價值", "number", { accountTypes: ["保險"] }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
-const holdingFields = [field("名稱", "名稱"), field("代號", "代號"), field("市場", "市場", "select", { choices: ["台股", "美股", "泰國基金", "加密貨幣", "其他"] }), field("計價幣別", "計價幣別", "select", { choices: currencyCodes, manage: "currency" }), field("數量", "數量", "number"), field("平均成本", "平均成本", "number"), field("最新價", "最新價（自動報價，可手動改）", "number"), field("帳戶", "所屬帳戶", "relation", { source: "accounts" }), field("定期定額", "定期定額", "checkbox"), field("每期金額", "每期金額", "number"), field("扣款日", "扣款日（每月幾號，1～31）", "number", { min: 1, max: 31, step: 1 }), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts" }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
-const recurringFields = [field("名稱", "名稱"), field("群組", "群組"), field("週期", "週期", "select", { choices: ["週", "月", "季", "年"] }), field("金額", "金額", "number"), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("性質", "性質", "select", { choices: ["支出", "轉入資產"] }), field("扣款日", "扣款日（每月幾號，1～31）", "number", { min: 1, max: 31, step: 1 }), field("扣款月份", "扣款月份（1～12）", "number", { min: 1, max: 12, step: 1 }), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts" }), field("下次扣款", "下次扣款", "date"), field("對應持倉", "對應持倉", "relation", { source: "holdings" }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
-const transactionFields = [field("收支", "類型", "hidden"), field("店家／項目", "店家／項目"), field("日期", "日期", "date"), field("原幣金額", "金額", "number"), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("帳戶", "帳戶", "relation", { source: "accounts" }), field("分類", "分類", "select", { choices: ["餐飲", "交通", "購物", "居住", "娛樂", "醫療", "旅遊", "薪資", "投資", "保險", "其他"] }), field("狀態", "狀態", "select", { choices: ["預估", "已入帳", "已出帳", "已繳款"] }), field("轉入帳戶", "轉入帳戶", "relation", { source: "accounts", types: ["轉帳"] }), field("實扣金額", "實扣金額", "number", { types: ["轉帳", "支出"] }), field("持倉", "持倉", "relation", { source: "holdings", types: ["投資買入", "投資賣出"] }), field("成交數量", "成交數量", "number", { types: ["投資買入", "投資賣出"] }), field("成交單價", "成交單價", "number", { types: ["投資買入", "投資賣出"] }), field("手續費", "手續費", "number", { types: ["投資買入", "投資賣出"] }), field("定期定額", "定期定額", "checkbox", { types: ["投資買入"] }), field("備註", "備註", "textarea", { wide: true })];
+const holdingFields = [field("名稱", "名稱"), field("代號", "代號"), field("市場", "市場", "select", { choices: ["台股", "美股", "泰國基金", "加密貨幣", "其他"] }), field("計價幣別", "計價幣別", "select", { choices: currencyCodes, manage: "currency" }), field("數量", "數量", "number"), field("平均成本", "平均成本", "number"), field("最新價", "最新價（自動報價，可手動改）", "number"), field("帳戶", "所屬帳戶（放這個持倉的平台）", "relation", { source: "accounts", kinds: (d) => d.市場 === "加密貨幣" ? ["加密貨幣"] : d.市場 === "其他" || !d.市場 ? ["投資", "加密貨幣", "銀行"] : ["投資"] }), field("定期定額", "定期定額", "checkbox"), field("每期金額", "每期金額", "number"), field("扣款日", "扣款日（每月幾號，1～31）", "number", { min: 1, max: 31, step: 1 }), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts", kinds: () => ["銀行", "現金", "電子支付", "信用卡"] }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
+const recurringFields = [field("名稱", "名稱"), field("群組", "群組"), field("週期", "週期", "select", { choices: ["週", "月", "季", "年"] }), field("金額", "金額", "number"), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("性質", "性質", "select", { choices: ["支出", "轉入資產"] }), field("扣款日", "扣款日（每月幾號，1～31）", "number", { min: 1, max: 31, step: 1 }), field("扣款月份", "扣款月份（1～12）", "number", { min: 1, max: 12, step: 1 }), field("扣款帳戶", "扣款帳戶", "relation", { source: "accounts", kinds: () => ["銀行", "現金", "電子支付", "信用卡"] }), field("下次扣款", "下次扣款", "date"), field("對應持倉", "對應持倉", "relation", { source: "holdings" }), field("啟用", "啟用", "checkbox", { default: true }), field("備註", "備註", "textarea", { wide: true })];
+const transactionFields = [field("收支", "類型", "hidden"), field("店家／項目", "店家／項目"), field("日期", "日期", "date"), field("原幣金額", "金額", "number"), field("幣別", "幣別", "select", { choices: currencyCodes, manage: "currency" }), field("帳戶", "帳戶", "relation", { source: "accounts", kinds: (d, t) => t === "支出" ? ["銀行", "現金", "電子支付", "信用卡"] : ["銀行", "現金", "電子支付", "投資", "加密貨幣"] }), field("分類", "分類", "select", { choices: ["餐飲", "交通", "購物", "居住", "娛樂", "醫療", "旅遊", "薪資", "投資", "保險", "其他"] }), field("狀態", "狀態", "select", { choices: ["預估", "已入帳", "已出帳", "已繳款"] }), field("轉入帳戶", "轉入帳戶", "relation", { source: "accounts", types: ["轉帳"], kinds: () => ["銀行", "現金", "電子支付", "投資", "加密貨幣", "信用卡", "保險"] }), field("實扣金額", "實扣金額", "number", { types: ["轉帳", "支出"] }), field("持倉", "持倉", "relation", { source: "holdings", types: ["投資買入", "投資賣出"] }), field("成交數量", "成交數量", "number", { types: ["投資買入", "投資賣出"] }), field("成交單價", "成交單價", "number", { types: ["投資買入", "投資賣出"] }), field("手續費", "手續費", "number", { types: ["投資買入", "投資賣出"] }), field("定期定額", "定期定額", "checkbox", { types: ["投資買入"] }), field("備註", "備註", "textarea", { wide: true })];
 
 function openEditor(kind, record = null, draft = {}) {
   state.editor = { kind, record, draft, transactionType: draft.收支 || record?.p?.收支 || "支出", receiptStatus: "", receiptImage: null, receiptRemoved: false };
@@ -592,7 +628,7 @@ function openEditor(kind, record = null, draft = {}) {
   renderEditorFields(); $("#editor-dialog").showModal();
 }
 function renderEditorFields() {
-  const { kind, record, transactionType } = state.editor; const data = { ...(record?.p || {}), ...(state.editor.draft || {}) };
+  const { kind, record, transactionType } = state.editor; const data = { ...(record?.p || {}), ...(state.editor.draft || {}) }; state.editor.currentData = data;
   const fields = kind === "account" ? accountFields : kind === "holding" ? holdingFields : kind === "recurring" ? recurringFields : transactionFields;
   const tabs = kind === "transaction" ? `<div class="type-tabs">${["支出", "收入", "轉帳", "投資買入", "投資賣出"].map((type) => `<button type="button" data-transaction-type="${type}" class="${type === transactionType ? "active" : ""}">${type}</button>`).join("")}</div>` : "";
   const receipt = kind === "transaction" ? `<div class="receipt-tools"><strong>📷 收據 AI 辨識</strong>　可以「拍照」或「從相簿選」一張收據；辨識後只會先填表，不會自動儲存，請確認金額與帳戶。${state.editor.receiptStatus ? `<br><span id="receipt-status-text">${esc(state.editor.receiptStatus)}</span>` : ""}</div>` : "";
@@ -605,7 +641,10 @@ function holdingPicker(data) {
     const code = String(data.代號 || "").trim();
     return `<div class="receipt-tools coin-picker"><strong>🔎 選擇加密貨幣</strong>　輸入名稱或代號搜尋，點選後會自動帶入名稱與報價編號。${code ? `<br>目前：<b>${esc(data.名稱 || "")}</b> · 代號 <code>${esc(code)}</code>` : ""}<input id="coin-search" placeholder="例如 bitcoin、BTC、solana" autocomplete="off"><div id="coin-results" class="coin-results"></div></div>`;
   }
-  if (data.市場 === "台股" || data.市場 === "美股") {
+  if (data.市場 === "台股") {
+    return `<div class="receipt-tools coin-picker"><strong>🔎 搜尋台股</strong>　輸入代號或名稱（上市、上櫃、ETF 都查得到），點選後自動帶入名稱與收盤價。${data.代號 ? `<br>目前：<b>${esc(data.名稱 || "")}</b> · 代號 <code>${esc(data.代號)}</code>` : ""}<input id="stock-search" placeholder="例如 3293、006208、台積" autocomplete="off"><div id="stock-results" class="coin-results"></div></div>`;
+  }
+  if (data.市場 === "美股") {
     return `<div class="receipt-tools"><strong>🔎 ${esc(data.市場)}</strong>　輸入代號（${data.市場 === "台股" ? "例如 0050、2330" : "例如 VT、AAPL"}），按「查價驗證」確認代號正確並取得現價${data.市場 === "台股" ? "與名稱" : ""}。<div class="option-add"><button type="button" class="secondary" data-action="verify-symbol">查價驗證</button><span id="verify-status" class="source-note"></span></div></div>`;
   }
   return "";
@@ -652,8 +691,18 @@ function renderField(f, value) {
     return `<label class="${className}">${esc(f.label)}<select name="${esc(f.name)}" data-prev="${esc(current)}" ${f.manage ? `data-manage="${f.manage}"` : ""}><option value="">請選擇</option>${all.map((choice) => `<option ${current === choice ? "selected" : ""}>${esc(choice)}</option>`).join("")}${manage}</select></label>`;
   }
   if (f.type === "relation") {
-    const rows = state[f.source] || []; const selected = asArray(value)[0] || "";
-    return `<label class="${className}">${esc(f.label)}<select name="${esc(f.name)}"><option value="">無</option>${rows.map((row) => `<option value="${esc(row.id)}" ${selected === row.id ? "selected" : ""}>${esc(relationLabel(f.source, row, rows))}</option>`).join("")}</select></label>`;
+    const all = state[f.source] || []; const selected = asArray(value)[0] || "";
+    // 帳戶欄位只列「這個情境需要的種類」，並依種類分組；已選的永遠保留，也能切到「顯示全部帳戶」
+    const kinds = f.source === "accounts" && typeof f.kinds === "function" && !state.editor?.showAllAccounts ? f.kinds(state.editor?.currentData || {}, state.editor?.transactionType) : null;
+    const rows = kinds ? all.filter((row) => kinds.includes(row.p?.類型) || row.id === selected) : all;
+    const option = (row) => `<option value="${esc(row.id)}" ${selected === row.id ? "selected" : ""}>${esc(relationLabel(f.source, row, rows))}</option>`;
+    let body;
+    if (f.source === "accounts") {
+      const groups = new Map(); for (const row of rows) { const t = row.p?.類型 || "其他"; if (!groups.has(t)) groups.set(t, []); groups.get(t).push(row); }
+      body = [...groups.entries()].map(([type, list]) => `<optgroup label="${esc(type)}">${list.map(option).join("")}</optgroup>`).join("");
+    } else body = rows.map(option).join("");
+    const more = kinds && rows.length < all.length ? '<option value="__all__">… 顯示全部帳戶</option>' : "";
+    return `<label class="${className}">${esc(f.label)}<select name="${esc(f.name)}"><option value="">無</option>${body}${more}</select></label>`;
   }
   if (f.type === "checkbox") return `<label class="${className}"><input type="checkbox" name="${esc(f.name)}" ${value ?? f.default ? "checked" : ""}>${esc(f.label)}</label>`;
   if (f.type === "textarea") return `<label class="${className}">${esc(f.label)}<textarea name="${esc(f.name)}" rows="3">${esc(value || "")}</textarea></label>`;
@@ -665,7 +714,7 @@ function collectEditorData() {
   for (const input of $$('[name]', form)) {
     if (input.type === "checkbox") data[input.name] = input.checked;
     else if (input.type === "number") data[input.name] = input.value === "" ? null : number(input.value);
-    else if (RELATION_FIELDS.has(input.name)) data[input.name] = input.value ? [input.value] : [];
+    else if (RELATION_FIELDS.has(input.name)) data[input.name] = input.value && input.value !== "__all__" ? [input.value] : [];
     else data[input.name] = input.value;
   }
   return data;
@@ -849,6 +898,14 @@ async function refreshPrices() {
         else problems.push(`報價服務回應 ${response.status}`);
       } catch (error) { problems.push(`報價服務：${error.message}`); }
     }
+    // n8n 沒查到的台股（例如上櫃股票），改用每日更新的台股資料檔
+    try {
+      const twList = await loadTwStocks();
+      for (const row of state.holdings.filter((x) => x.p?.市場 === "台股" && x.p?.代號 && !quoted.has(x.id))) {
+        const hit = twStockPrice(twList, row.p.代號);
+        if (hit?.price) { await saveRecord("holdings", { 最新價: hit.price, 價格更新時間: nowISO(), 報價來源: hit.board === "櫃" ? "櫃買中心" : "證交所" }, row); quoted.add(row.id); }
+      }
+    } catch (error) { problems.push(`台股資料檔：${error.message}`); }
     // n8n 沒回報價的加密貨幣持倉，直接用 CoinGecko 的價格換算成持倉的計價幣別
     for (const row of cryptoHoldings) {
       if (quoted.has(row.id)) continue;
@@ -910,6 +967,8 @@ function bindEvents() {
   // 帳戶類型改變時重畫表單：信用卡／保險欄位只在選到該類型時出現
   $("#editor-fields").addEventListener("change", (event) => {
     const sel = event.target;
+    if (sel.value === "__all__") { state.editor.showAllAccounts = true; state.editor.draft = { ...state.editor.draft, ...collectEditorData() }; renderEditorFields(); return; }
+    if (state.editor?.kind === "transaction" && sel.name === "持倉") { /* 持倉選項不分組 */ }
     if (sel.value === "__manage__") { sel.value = sel.dataset.prev || ""; openOptionsDialog(sel.dataset.manage); return; }
     if (sel.dataset?.prev !== undefined) sel.dataset.prev = sel.value;
     if (state.editor?.kind === "holding" && sel.name === "市場") { state.editor.draft = { ...state.editor.draft, ...collectEditorData() }; renderEditorFields(); return; }
@@ -918,10 +977,12 @@ function bindEvents() {
     state.editor.draft = { ...state.editor.draft, ...collectEditorData() }; renderEditorFields();
   });
   $("#editor-fields").addEventListener("input", (event) => {
+    if (event.target.id === "stock-search") { clearTimeout(coinSearchTimer); const value = event.target.value; coinSearchTimer = setTimeout(() => void searchTwStocks(value), 250); return; }
     if (event.target.id !== "coin-search") return; clearTimeout(coinSearchTimer); const value = event.target.value; coinSearchTimer = setTimeout(() => void searchCoins(value), 400);
   });
   $("#editor-fields").addEventListener("click", (event) => {
     const coin = event.target.closest("[data-coin-id]"); if (coin) { pickCoin(coin); return; }
+    const stock = event.target.closest("[data-stock-code]"); if (stock) { pickTwStock(stock); return; }
     if (event.target.closest('[data-action="verify-symbol"]')) void verifySymbol();
   });
   $("#options-dialog").addEventListener("click", (event) => {
