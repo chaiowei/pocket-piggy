@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.5.1-p3";
+const APP_VERSION = "2.5.2-p3";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -928,6 +928,20 @@ async function init() {
         const now = Date.now();
         if (now - lastBack < 2000) { AppPlugin.exitApp(); return; }
         lastBack = now; toast("再滑一次返回才會離開小豬帳本");
+      });
+    }
+    // 網頁版／PWA（手機觸控）：返回手勢跟 App 版一致——先關視窗、再回總覽、總覽連按兩次才離開。
+    // Chrome 134+ 的 modal <dialog> 會自己處理返回手勢（closedby），這裡補舊瀏覽器與「回總覽」「離開確認」。
+    if (!isNativeApp && window.matchMedia?.("(pointer: coarse)").matches) {
+      let lastBack = 0; const guard = () => history.pushState({ piggyGuard: true }, "");
+      history.replaceState({ piggyRoot: true }, ""); guard();
+      window.addEventListener("popstate", () => {
+        const dialogs = [...document.querySelectorAll("dialog[open]")];
+        if (dialogs.length) { dialogs[dialogs.length - 1].close("cancel"); guard(); return; }
+        if (state.view && state.view !== "overview") { switchView("overview"); guard(); return; }
+        const now = Date.now();
+        if (now - lastBack < 2000) { history.back(); return; }
+        lastBack = now; toast("再滑一次返回才會離開小豬帳本"); guard();
       });
     }
     if (!isNativeApp && "serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
