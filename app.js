@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.6.1-p3";
+const APP_VERSION = "2.7.0";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -136,6 +136,14 @@ function nativeMoney(amount, currency = "TWD") {
   const size = Math.abs(number(amount)); const digits = !isCrypto(currency) ? 2 : size >= 1000 ? 2 : size >= 1 ? 4 : 8;
   return `${currencySymbol(currency)}${formatNumber(amount, digits)}`;
 }
+function nativeCodeMoney(amount, currency = "TWD") {
+  const size = Math.abs(number(amount)); const digits = !isCrypto(currency) ? 2 : size >= 1000 ? 2 : size >= 1 ? 4 : 8;
+  return `${formatNumber(amount, digits)} ${currency}`;
+}
+function convertedMoney(twd) {
+  let currency = state.settings.displayCurrency || "TWD"; if (!rate(currency)) currency = "TWD";
+  return nativeMoney(fromTWD(twd, currency), currency);
+}
 function moneyTWD(twd, compact = false) {
   let currency = state.settings.displayCurrency || "TWD";
   if (!rate(currency)) currency = "TWD";
@@ -164,6 +172,50 @@ function transactionTWD(record) {
   const p = record.p || {};
   if (p.台幣金額 !== null && p.台幣金額 !== undefined && p.台幣金額 !== "") return number(p.台幣金額);
   return toTWD(p.原幣金額 || number(p.成交數量) * number(p.成交單價), p.幣別 || "TWD");
+}
+
+function calendarDate(year, monthIndex, day) {
+  const last = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(Math.min(Math.max(1, number(day)), last)).padStart(2, "0")}`;
+}
+function latestMonthlyDate(day, today = todayISO()) {
+  const [year, month] = today.split("-").map(Number); let candidate = calendarDate(year, month - 1, day);
+  if (candidate > today) candidate = calendarDate(month === 1 ? year - 1 : year, month === 1 ? 11 : month - 2, day);
+  return candidate;
+}
+function nextMonthlyDateAfter(day, afterDate) {
+  const [year, month] = afterDate.split("-").map(Number); let candidate = calendarDate(year, month - 1, day);
+  if (candidate <= afterDate) candidate = calendarDate(month === 12 ? year + 1 : year, month === 12 ? 0 : month, day);
+  return candidate;
+}
+function daysBetween(from, to) { return Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86400000); }
+function cardExpenses(card, statuses = null) {
+  return state.transactions.filter((row) => hasRelation(row.p?.帳戶, card.id) && row.p?.收支 === "支出" && (!statuses || statuses.includes(row.p?.狀態)));
+}
+function cardBilledAmount(card) {
+  const currency = card.p?.幣別 || "TWD";
+  return cardExpenses(card, ["已出帳"]).reduce((sum, row) => sum + sourceAmount(row, currency), 0);
+}
+function cardStatementInfo(card, today = todayISO()) {
+  const closingDay = number(card.p?.結帳日); const dueDay = number(card.p?.繳款日);
+  if (!(closingDay >= 1 && closingDay <= 31) || !(dueDay >= 1 && dueDay <= 31)) return null;
+  const statementDate = latestMonthlyDate(closingDay, today); const dueDate = nextMonthlyDateAfter(dueDay, statementDate);
+  return { statementDate, dueDate, daysDue: daysBetween(today, dueDate), amount: cardBilledAmount(card) };
+}
+
+async function processCreditCardStatements() {
+  const today = todayISO(); let changed = false;
+  for (const card of state.accounts.filter((row) => row.p?.啟用 !== false && row.p?.類型 === "信用卡")) {
+    const closingDay = number(card.p?.結帳日); if (!(closingDay >= 1 && closingDay <= 31)) continue;
+    const statementDate = latestMonthlyDate(closingDay, today);
+    for (const row of cardExpenses(card, ["預估", "已入帳", null, ""]).filter((item) => (item.p?.日期 || "") <= statementDate)) {
+      await saveRecord("transactions", { 狀態: "已出帳" }, row); changed = true;
+    }
+    const refreshed = state.accounts.find((row) => row.id === card.id) || card;
+    const billed = roundedNumber(cardBilledAmount(refreshed), 8);
+    if (number(refreshed.p?.已出帳金額) !== billed) { await saveRecord("accounts", { 已出帳金額: billed }, refreshed); changed = true; }
+  }
+  return changed;
 }
 
 function accountBalance(account) {
@@ -409,6 +461,7 @@ function renderOverview() {
   $("#month-expense").textContent = moneyTWD(monthExpense, true);
   $("#pending-count").textContent = `${state.outbox.length} 筆`;
   $("#sync-status").textContent = state.lastSync ? `上次同步 ${new Date(state.lastSync).toLocaleString("zh-TW")}` : "尚未與雲端同步；可先離線使用";
+  renderCardReminders();
 
   const allocation = new Map();
   for (const { account, value } of t.accountValues) if (value > 0) allocation.set(account.p?.類型 || "其他", (allocation.get(account.p?.類型 || "其他") || 0) + value);
@@ -423,6 +476,12 @@ function renderOverview() {
   list.classList.toggle("empty-state", !recent.length);
   list.innerHTML = recent.length ? recent.map(transactionRow).join("") : "還沒有交易，記下第一筆吧！";
   renderTrend(t.net);
+}
+function renderCardReminders() {
+  const el = $("#card-reminders"); if (!el) return;
+  const cards = state.accounts.filter((row) => row.p?.啟用 !== false && row.p?.類型 === "信用卡").map((card) => ({ card, info: cardStatementInfo(card) })).filter(({ info }) => info && info.amount > 0).sort((a, b) => a.info.dueDate.localeCompare(b.info.dueDate));
+  el.innerHTML = cards.map(({ card, info }) => `<article class="card-due ${info.daysDue < 0 ? "overdue" : info.daysDue <= 3 ? "soon" : ""}"><div><span>💳 ${esc(card.p?.名稱 || "信用卡")}</span><strong>${nativeMoney(info.amount, card.p?.幣別 || "TWD")}</strong><small>${info.daysDue < 0 ? `已逾期 ${Math.abs(info.daysDue)} 天` : info.daysDue === 0 ? "今天繳款" : `${info.daysDue} 天後繳款`} · ${esc(info.dueDate)}</small></div><button type="button" data-card-action="pay" data-id="${esc(card.id)}">建立繳款轉帳</button></article>`).join("");
+  el.classList.toggle("hidden", cards.length === 0);
 }
 function renderTrend(currentNet) {
   const byDate = new Map(state.snapshots.map((row) => [row.p?.日期 || row.p?.快照日, number(row.p?.淨資產TWD ?? row.p?.淨資產)]).filter(([date]) => date));
@@ -451,7 +510,8 @@ function renderExpenseBars(entries, total) {
 }
 function transactionRow(row) {
   const p = row.p || {}; const sign = p.收支 === "收入" || p.收支 === "投資賣出" ? "+" : p.收支 === "估值調整" ? "±" : "−";
-  return `<div class="list-item" data-edit="transaction" data-id="${esc(row.id)}"><div class="item-main"><span class="item-icon">${p.收支 === "收入" ? "💰" : p.收支?.startsWith("投資") ? "📈" : p.收支 === "轉帳" ? "↔️" : "🧾"}</span><div><div class="item-title">${esc(p["店家／項目"] || p.收支 || "交易")}${state.receiptIds.has(`receipt-${syncIdFor(row)}`) ? ' <span title="有收據照片">📎</span>' : ""}${row.pending ? '<span class="pending-badge">待送</span>' : ""}</div><div class="item-meta">${esc(p.日期 || "")} · ${esc(p.分類 || p.幣別 || "")}</div></div></div><div class="amount ${p.收支 === "支出" ? "expense" : ""}">${sign}${moneyTWD(transactionTWD(row), true)}</div></div>`;
+  const currency = p.幣別 || "TWD"; const native = nativeCodeMoney(nativeAmount(row), currency); const converted = currency !== (state.settings.displayCurrency || "TWD") ? `<small>約 ${convertedMoney(transactionTWD(row))} · 1 ${esc(currency)} = ${formatNumber(rate(currency), 6)} TWD</small>` : "";
+  return `<div class="list-item" data-edit="transaction" data-id="${esc(row.id)}"><div class="item-main"><span class="item-icon">${p.收支 === "收入" ? "💰" : p.收支?.startsWith("投資") ? "📈" : p.收支 === "轉帳" ? "↔️" : "🧾"}</span><div><div class="item-title">${esc(p["店家／項目"] || p.收支 || "交易")}${state.receiptIds.has(`receipt-${syncIdFor(row)}`) ? ' <span title="有收據照片">📎</span>' : ""}${row.pending ? '<span class="pending-badge">待送</span>' : ""}</div><div class="item-meta">${esc(p.日期 || "")} · ${esc(p.分類 || p.幣別 || "")}</div></div></div><div class="amount ${p.收支 === "支出" ? "expense" : ""}">${sign}${native}${converted}</div></div>`;
 }
 function renderAccounts() {
   const groups = new Map(); state.accounts.filter((x) => x.p?.啟用 !== false).forEach((row) => { const type = row.p?.類型 || "其他"; if (!groups.has(type)) groups.set(type, []); groups.get(type).push(row); });
@@ -592,6 +652,22 @@ async function searchTwStocks(query) {
   const hits = list.rows.filter((r) => r[0].startsWith(q) || r[1].toUpperCase().includes(q)).slice(0, 10);
   box.innerHTML = hits.length ? hits.map((r) => `<button type="button" class="coin-option" data-stock-code="${esc(r[0])}"><span><b>${esc(r[1])}</b> <small>${esc(r[0])} · ${r[3] === "櫃" ? "上櫃" : "上市"}${r[2] ? ` · 收盤 ${esc(r[2])}` : ""}</small></span></button>`).join("") : '<div class="source-note">找不到。可以輸入代號（例如 3293、006208）或名稱的一部分（例如 台積）。</div>';
 }
+async function searchUsStocks(query) {
+  const box = $("#us-stock-results"); if (!box) return;
+  const q = String(query || "").trim(); if (q.length < 2) { box.innerHTML = ""; return; }
+  if (!state.settings.token) { box.innerHTML = '<div class="source-note">需要先在「更多 → 設定」輸入連線碼。</div>'; return; }
+  if (!navigator.onLine) { box.innerHTML = '<div class="source-note">目前離線，無法搜尋。</div>'; return; }
+  box.innerHTML = '<div class="source-note">搜尋中…</div>';
+  try {
+    const response = await fetch(endpoint("piggy-prices"), { method: "POST", headers: apiHeaders(), body: JSON.stringify({ search: { market: "美股", query: q }, holdings: [] }) });
+    if (!response.ok) throw new Error(`服務回應 ${response.status}`); const payload = await response.json(); const rows = (payload.search || []).slice(0, 10);
+    box.innerHTML = rows.length ? rows.map((row) => `<button type="button" class="coin-option" data-us-symbol="${esc(row.symbol)}" data-us-name="${esc(row.name || row.symbol)}"><span><b>${esc(row.symbol)}</b> <small>${esc(row.name || "")} ${row.type ? `· ${esc(row.type)}` : ""}</small></span></button>`).join("") : '<div class="source-note">找不到，請換公司名稱或代號。</div>';
+  } catch (error) { box.innerHTML = `<div class="source-note">搜尋失敗：${esc(error.message)}</div>`; }
+}
+function pickUsStock(button) {
+  state.editor.draft = { ...state.editor.draft, ...collectEditorData(), 市場: "美股", 代號: button.dataset.usSymbol, 名稱: `${button.dataset.usName} (${button.dataset.usSymbol})`, 計價幣別: "USD" };
+  renderEditorFields(); toast(`已選擇 ${button.dataset.usSymbol}`); void verifySymbol();
+}
 function pickTwStock(button) {
   const list = twStocksCache; const hit = twStockPrice(list, button.dataset.stockCode); if (!hit) return;
   const draft = { ...state.editor.draft, ...collectEditorData(), 市場: "台股", 代號: hit.code, 名稱: `${hit.name} (${hit.code})`, 計價幣別: "TWD" };
@@ -660,7 +736,7 @@ function holdingPicker(data) {
     return `<div class="receipt-tools coin-picker"><strong>🔎 搜尋台股</strong>　輸入代號或名稱（上市、上櫃、ETF 都查得到），點選後自動帶入名稱與收盤價。${data.代號 ? `<br>目前：<b>${esc(data.名稱 || "")}</b> · 代號 <code>${esc(data.代號)}</code>` : ""}<input id="stock-search" placeholder="例如 3293、006208、台積" autocomplete="off"><div id="stock-results" class="coin-results"></div></div>`;
   }
   if (data.市場 === "美股") {
-    return `<div class="receipt-tools"><strong>🔎 ${esc(data.市場)}</strong>　輸入代號（${data.市場 === "台股" ? "例如 0050、2330" : "例如 VT、AAPL"}），按「查價驗證」確認代號正確並取得現價${data.市場 === "台股" ? "與名稱" : ""}。<div class="option-add"><button type="button" class="secondary" data-action="verify-symbol">查價驗證</button><span id="verify-status" class="source-note"></span></div></div>`;
+    return `<div class="receipt-tools coin-picker"><strong>🔎 搜尋美股</strong>　可輸入公司英文名稱或代號，點選後自動帶入代號並查價。${data.代號 ? `<br>目前：<b>${esc(data.名稱 || "")}</b> · 代號 <code>${esc(data.代號)}</code>` : ""}<input id="us-stock-search" placeholder="例如 Apple、AAPL、Vanguard"><div id="us-stock-results" class="coin-results"></div><div class="option-add"><button type="button" class="secondary" data-action="verify-symbol">查價驗證</button><span id="verify-status" class="source-note"></span></div></div>`;
   }
   return "";
 }
@@ -736,6 +812,7 @@ function collectEditorData() {
 }
 async function saveEditor() {
   const { kind, record } = state.editor; const data = collectEditorData();
+  if (state.editor.draft?.同步編號) data.同步編號 = state.editor.draft.同步編號;
   for (const [name, max] of [["結帳日", 31], ["繳款日", 31], ["扣款日", 31], ["扣款月份", 12]]) {
     if (data[name] !== undefined && data[name] !== null && !(Number.isInteger(data[name]) && data[name] >= 1 && data[name] <= max)) { data[name] = null; toast(`${name}要填 1～${max} 的整數，已清除請重填`); }
   } const table = ({ account: "accounts", holding: "holdings", recurring: "recurring", transaction: "transactions" })[kind];
@@ -749,6 +826,13 @@ async function saveEditor() {
   }
   const { receiptImage, receiptRemoved } = state.editor;
   const saved = await saveRecord(table, data, record);
+  if (kind === "transaction" && data.收支 === "轉帳" && String(data.同步編號 || "").startsWith("card-payment-")) {
+    const card = state.accounts.find((row) => hasRelation(data.轉入帳戶, row.id) && row.p?.類型 === "信用卡");
+    if (card && Math.abs(number(data.原幣金額) - cardBilledAmount(card)) < 0.01) {
+      for (const row of cardExpenses(card, ["已出帳"])) await saveRecord("transactions", { 狀態: "已繳款" }, row);
+      const current = state.accounts.find((row) => row.id === card.id) || card; await saveRecord("accounts", { 已出帳金額: 0 }, current);
+    }
+  }
   if (kind === "transaction" && (receiptImage || receiptRemoved)) {
     const key = `receipt-${syncIdFor(saved)}`;
     try { if (receiptImage) await putOne("meta", { id: key, image: receiptImage, saved_at: nowISO() }); else await deleteOne("meta", key); }
@@ -820,8 +904,11 @@ async function reconcileTransaction(id) {
   openCardDialog(card); toast("已更新原交易，不會重複計算");
 }
 function openCardPayment(card) {
-  const amount = Math.max(0, Math.abs(accountBalance(card)));
-  openEditor("transaction", null, { 收支: "轉帳", "店家／項目": `繳${card.p?.名稱 || "信用卡"}卡費`, 日期: todayISO(), 原幣金額: amount, 幣別: card.p?.幣別 || "TWD", 轉入帳戶: [card.id], 狀態: "已繳款", 備註: "信用卡繳款是轉帳，不重複列支出" });
+  const info = cardStatementInfo(card); const amount = info?.amount || number(card.p?.已出帳金額);
+  if (!(amount > 0)) return toast("這張卡目前沒有已出帳金額");
+  const syncId = `card-payment-${syncIdFor(card)}-${info?.statementDate || todayISO()}`;
+  if (state.transactions.some((row) => row.p?.同步編號 === syncId)) return toast("本期繳款轉帳已建立，請勿重複新增");
+  openEditor("transaction", null, { 同步編號: syncId, 收支: "轉帳", "店家／項目": `繳${card.p?.名稱 || "信用卡"}卡費`, 日期: todayISO(), 原幣金額: amount, 幣別: card.p?.幣別 || "TWD", 轉入帳戶: [card.id], 狀態: "已繳款", 備註: `信用卡繳款是轉帳，不重複列支出；帳單日 ${info?.statementDate || ""}` });
 }
 
 function addPeriod(dateText, period, anchorDay = 0) {
@@ -993,11 +1080,13 @@ function bindEvents() {
   });
   $("#editor-fields").addEventListener("input", (event) => {
     if (event.target.id === "stock-search") { clearTimeout(coinSearchTimer); const value = event.target.value; coinSearchTimer = setTimeout(() => void searchTwStocks(value), 250); return; }
+    if (event.target.id === "us-stock-search") { clearTimeout(coinSearchTimer); const value = event.target.value; coinSearchTimer = setTimeout(() => void searchUsStocks(value), 350); return; }
     if (event.target.id !== "coin-search") return; clearTimeout(coinSearchTimer); const value = event.target.value; coinSearchTimer = setTimeout(() => void searchCoins(value), 400);
   });
   $("#editor-fields").addEventListener("click", (event) => {
     const coin = event.target.closest("[data-coin-id]"); if (coin) { pickCoin(coin); return; }
     const stock = event.target.closest("[data-stock-code]"); if (stock) { pickTwStock(stock); return; }
+    const usStock = event.target.closest("[data-us-symbol]"); if (usStock) { pickUsStock(usStock); return; }
     if (event.target.closest('[data-action="verify-symbol"]')) void verifySymbol();
   });
   $("#options-dialog").addEventListener("click", (event) => {
@@ -1030,7 +1119,7 @@ function bindEvents() {
 async function init() {
   try {
     state.db = await openDatabase(); await loadState(); bindEvents(); render(); switchView("overview");
-    await generateRecurringTransactions(); await saveTodaySnapshot(); await loadState(); render();
+    await generateRecurringTransactions(); await processCreditCardStatements(); await saveTodaySnapshot(); await loadState(); render();
     const isNativeApp = Boolean(window.Capacitor?.isNativePlatform?.());
     document.documentElement.classList.toggle("is-native", isNativeApp);
     const AppPlugin = window.Capacitor?.Plugins?.App;

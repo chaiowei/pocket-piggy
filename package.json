@@ -1,9 +1,10 @@
 {
   "name": "pocket-piggy",
-  "version": "2.6.1",
+  "version": "2.7.0",
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node scripts/test-regressions.mjs",
     "build:web": "node scripts/build-web.mjs",
     "android:add": "npm run build:web && cap add android",
     "android:sync": "npm run build:web && cap sync android",

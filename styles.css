@@ -74,3 +74,12 @@ dialog{width:min(620px,calc(100% - 24px));max-height:92vh;border:0;border-radius
 .mini-actions{display:flex;justify-content:flex-end;margin-bottom:8px}
 .mini-button{background:transparent;border:1px solid var(--border);color:var(--muted);padding:.3rem .7rem;border-radius:999px;font-size:.76rem}
 .mini-button.attention{border-color:var(--pink);color:var(--pink-dark);font-weight:700}
+
+/* 2.7.0：原幣優先顯示與信用卡繳款提醒 */
+.amount small{display:block;margin-top:3px;color:var(--muted);font-size:.68rem;font-weight:600;white-space:nowrap}
+.card-reminders{display:grid;gap:10px;margin:0 0 16px}.card-reminders.hidden{display:none}
+.card-due{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 18px;border:1px solid #f0d58d;border-radius:18px;background:#fff9e7}
+.card-due>div{display:grid;gap:3px}.card-due span,.card-due small{color:var(--muted);font-size:.78rem}.card-due strong{font-size:1.15rem}
+.card-due.soon{border-color:#eeaa68;background:#fff2df}.card-due.overdue{border-color:#ee9aa5;background:#fff0f2}.card-due button{flex:0 0 auto}
+@media(max-width:560px){.card-due{align-items:stretch;flex-direction:column}.card-due button{width:100%}.amount small{white-space:normal}}
+@media(max-width:900px){html,body,.app-shell{max-width:100%;overflow-x:hidden}.bottom-nav{grid-template-columns:repeat(5,minmax(0,1fr))}.bottom-nav button{min-width:0;padding-inline:2px}.topbar{min-width:0}.topbar>div:first-child{min-width:0}}
