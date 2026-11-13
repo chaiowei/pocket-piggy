@@ -1,4 +1,4 @@
-const CACHE = "pocket-piggy-v2.7.0";
+const CACHE = "pocket-piggy-v2.8.0";
 const SHELL = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest", "icons/piggy.svg", "icons/piggy-maskable.svg"];
 
 self.addEventListener("install", (event) => {

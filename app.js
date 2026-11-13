@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.7.0";
+const APP_VERSION = "2.8.0";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];

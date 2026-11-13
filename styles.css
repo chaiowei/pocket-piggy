@@ -83,3 +83,71 @@ dialog{width:min(620px,calc(100% - 24px));max-height:92vh;border:0;border-radius
 .card-due.soon{border-color:#eeaa68;background:#fff2df}.card-due.overdue{border-color:#ee9aa5;background:#fff0f2}.card-due button{flex:0 0 auto}
 @media(max-width:560px){.card-due{align-items:stretch;flex-direction:column}.card-due button{width:100%}.amount small{white-space:normal}}
 @media(max-width:900px){html,body,.app-shell{max-width:100%;overflow-x:hidden}.bottom-nav{grid-template-columns:repeat(5,minmax(0,1fr))}.bottom-nav button{min-width:0;padding-inline:2px}.topbar{min-width:0}.topbar>div:first-child{min-width:0}}
+
+/* ===== 2.8.0 外觀：沿用最初 Demo 的版面（柔和卡片、粉藍漸層主卡、小豬插畫、Huninn／Nunito 字體、深色模式）。只改外觀，不動功能 ===== */
+:root{--bg:#FFF7F2;--surface:#FFFFFF;--ink:#4A3B47;--muted:#9A8794;--border:#F1E2DE;--pink:#FF8FAB;--pink-dark:#E5636F;--pink-soft:#FFE3EA;--mint:#5CC8A7;--mint-soft:#DDF5EC;--sky:#7BB6F0;--sky-soft:#E2EFFD;--sun:#FFC15E;--sun-soft:#FFF1D6;--grape:#B39CF0;--grape-soft:#EEE8FD;--lav:#B39CF0;--yellow:#FFC15E;--blue:#7BB6F0;--danger:#E5636F;--good:#2FA67F;--shadow:none;--radius:22px;--f-display:"Huninn","Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;--f-num:"Nunito","Huninn",system-ui,sans-serif;font-family:var(--f-display)}
+@media (prefers-color-scheme:dark){:root{--bg:#231C24;--surface:#2E2530;--ink:#F6E9EF;--muted:#B5A2AF;--border:#40343F;--pink:#FF9DB6;--pink-dark:#FF8590;--pink-soft:#4A2F3A;--mint:#6ED6B5;--mint-soft:#24403A;--sky:#8CC0F4;--sky-soft:#283A50;--sun:#FFCB75;--sun-soft:#4A3D25;--grape:#C1ADF5;--grape-soft:#3A3150;--danger:#FF8590;--good:#6ED6B5;color-scheme:dark}}
+body{background:var(--bg);font-size:15px;line-height:1.55}
+button{font-weight:400;border-radius:14px}
+button:hover{transform:none;filter:none}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--sky)}
+strong,b,.amount,.account-name,.item-title{font-weight:400}
+.metric-grid strong,.hero-card strong,.amount,.account-balance,.section-total,.bar-row strong,.hc-value,.price{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:800}
+.side-nav,.bottom-nav{background:var(--surface);backdrop-filter:none}
+.nav-item.active{background:var(--pink-soft);color:var(--pink-dark)}
+.brand{font-size:1.3rem;font-weight:400}
+.eyebrow{color:var(--muted);letter-spacing:.04em;font-weight:400}
+.topbar h1{font-weight:400}
+.pill{background:var(--mint-soft);color:var(--good);font-weight:400}.pill.offline{background:var(--sun-soft);color:var(--ink)}
+.card,.metric-grid article,.group-card,.guide-card,.holding-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:none}
+.card-heading h2{font-weight:400;font-size:1rem}
+/* 主卡：粉藍漸層＋小豬 */
+.hero-card{background:linear-gradient(135deg,var(--pink-soft),var(--sky-soft));color:var(--ink);box-shadow:none;border-radius:var(--radius);min-height:150px;padding:20px 22px}
+.hero-card::after{display:none}
+.hero-card p{color:var(--muted);font-weight:400;font-size:.85rem}
+.hero-card strong{letter-spacing:0;font-size:clamp(1.9rem,7vw,2.75rem)}
+.hero-card small{color:var(--muted);opacity:1}
+.piggy-orbit{animation:none;filter:none;width:104px;flex:0 0 auto;font-size:0}
+.piggy-orbit svg{width:100%;height:auto;display:block}
+.piggy-orbit .tail{transform-origin:12px 60px}
+@media (prefers-reduced-motion:no-preference){.piggy-orbit .tail{animation:wig 2.4s ease-in-out infinite}@keyframes wig{50%{transform:rotate(14deg)}}}
+/* 數字小卡 */
+.metric-grid{gap:8px}
+.metric-grid article{background:var(--surface);padding:10px 12px;border-radius:16px}
+.metric-grid span{font-size:.72rem}
+.metric-grid strong{font-size:1rem;margin-top:2px}
+/* 圖表 */
+.donut::after{background:var(--surface);inset:34px}
+.bar-track{background:var(--border)}
+.bar-fill{background:var(--pink)}
+.bar-row:nth-child(2) .bar-fill{background:var(--sky)}.bar-row:nth-child(3) .bar-fill{background:var(--grape)}.bar-row:nth-child(4) .bar-fill{background:var(--sun)}.bar-row:nth-child(5) .bar-fill{background:var(--mint)}.bar-row:nth-child(6) .bar-fill{background:var(--sky)}
+.trend-grid{stroke:var(--border)}.trend-labels{color:var(--muted)}.trend-dot{fill:var(--surface)}
+/* 清單 */
+.list-item,.account-row,.summary-line{border-bottom:1px dashed var(--border)}
+.item-icon{background:var(--pink-soft);border-radius:12px;width:36px;height:36px}
+.item-meta{color:var(--muted)}
+.amount.expense{color:var(--danger)}
+.pending-badge{background:var(--sun-soft);color:var(--ink)}.error-badge{background:var(--pink-soft);color:var(--danger)}
+.group-card{padding:4px 16px}
+.holding-card,.holding-card.compact{background:var(--surface)}
+/* 按鈕與表單 */
+.secondary{background:var(--surface);color:var(--ink);border:1px solid var(--border)}
+.danger{background:var(--pink-soft);color:var(--danger)}
+.text-button{color:var(--pink-dark)}
+.settings-card input,.settings-card select,.form-grid input,.form-grid select,.form-grid textarea,#wizard-content input,.option-add input,.option-add select,.coin-picker input,.reconcile-row input{background:var(--bg);color:var(--ink);border:1px solid var(--border);border-radius:12px}
+.type-tabs button{background:var(--surface);border:1px solid var(--border);color:var(--ink)}.type-tabs button.active{background:var(--pink);color:#fff;border-color:var(--pink)}
+.mini-button{background:var(--surface)}
+dialog{background:var(--surface);color:var(--ink);border-radius:22px}
+dialog form>header,dialog form>footer{background:var(--surface)}
+.option-row,.coin-option{background:var(--surface);color:var(--ink)}
+.wizard-row,.receipt-tools,.receipt-preview{background:var(--bg)}
+.notice{background:var(--sun-soft);border-color:var(--sun);color:var(--ink)}.notice p{color:var(--muted)}
+.guide-hero,.guide-entry{background:linear-gradient(135deg,var(--pink-soft),var(--sky-soft));border:0}
+.guide-callout{background:var(--sun-soft)}.mistake-grid>div,.guide-card tr{background:var(--bg)}
+.toast{background:var(--ink);color:var(--bg)}
+.return.gain{color:var(--good)}.return.loss{color:var(--danger)}.price-ok{color:var(--good)}.price-warn{color:var(--ink)}
+/* 手機底部導覽：選取時粉色底 */
+.bottom-nav button.active{background:var(--pink-soft);border-radius:14px}
+.bottom-nav .fab{box-shadow:none}
+body{background:var(--bg)}
+.card-due{background:var(--surface);border-color:var(--border);color:var(--ink)}.card-due.soon{background:var(--sun-soft);border-color:var(--sun)}.card-due.overdue{background:var(--pink-soft);border-color:var(--danger)}
