@@ -14,78 +14,113 @@
 </head>
 <body>
   <div class="app-shell">
-    <aside class="side-nav" aria-label="主要導覽">
-      <button class="brand" data-nav="overview" aria-label="小豬帳本首頁">
-        <img src="icons/piggy.svg" alt=""><span>小豬帳本</span>
-      </button>
-      <button data-nav="overview" class="nav-item active"><span>🏠</span>總覽</button>
-      <button data-nav="accounts" class="nav-item"><span>👛</span>帳戶</button>
-      <button data-action="transaction" class="nav-item nav-add"><span>＋</span>記一筆</button>
-      <button data-nav="investments" class="nav-item"><span>📈</span>投資</button>
-      <button data-nav="guide" class="nav-item"><span>📖</span>記帳說明</button>
-      <button data-nav="more" class="nav-item"><span>☰</span>更多</button>
-    </aside>
-
     <main>
-      <header class="topbar">
-        <div>
-          <p class="eyebrow" id="today-label"></p>
-          <h1 id="page-title">總覽</h1>
-        </div>
+      <header class="top topbar">
+        <button class="brand" data-nav="overview" aria-label="小豬帳本首頁"><svg width="42" height="42" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="34" r="24" fill="var(--pink)"/><ellipse cx="32" cy="40" rx="10" ry="7" fill="var(--pink-soft)"/><circle cx="28.5" cy="40" r="2" fill="var(--ink)"/><circle cx="35.5" cy="40" r="2" fill="var(--ink)"/><circle cx="23" cy="28" r="2.6" fill="var(--ink)"/><circle cx="41" cy="28" r="2.6" fill="var(--ink)"/><path d="M12 18 L18 6 L24 14Z M52 18 L46 6 L40 14Z" fill="var(--pink)"/></svg><span><strong>小豬帳本</strong><small id="today-label"></small></span></button>
         <div class="top-actions">
+          <div id="currency-switch" class="cur" role="group" aria-label="顯示幣別"></div>
           <span id="network-pill" class="pill">離線可用</span>
           <button class="icon-button" data-action="sync" aria-label="立即同步" title="立即同步">↻</button>
+          <button class="icon-button ghost" data-nav="more" aria-label="更多與設定" title="更多與設定">⚙</button>
         </div>
+        <h1 id="page-title" class="sr-only">總覽</h1>
       </header>
 
-      <section data-view="overview" class="view active">
+      <nav class="tabs" aria-label="主要導覽">
+        <button data-nav="overview" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>總覽</button>
+        <button data-action="transaction"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="3"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg>拍照記帳</button>
+        <button data-nav="assets"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>資產</button>
+        <button data-nav="fixed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>固定支出</button>
+      </nav>
+
+      <section data-view="overview" class="view two active">
         <div class="mini-actions"><button id="setup-mini" class="mini-button" data-action="wizard" title="第一次使用或之後要補填期初餘額時按這裡">🧾 開帳／期初餘額</button></div>
-        <div class="hero-card">
-          <div>
-            <p>淨資產</p>
-            <strong id="net-worth">NT$0</strong>
-            <small id="sync-status">本機資料已就緒</small>
-          </div>
-          <div class="piggy-orbit" aria-hidden="true"><svg viewBox="0 0 120 100" aria-hidden="true"><g class="tail"><path d="M14 58c-8-2-8-12 0-10s4 10-4 8" fill="none" stroke="var(--pink)" stroke-width="3" stroke-linecap="round"/></g><ellipse cx="62" cy="58" rx="46" ry="34" fill="var(--pink)"/><path d="M40 30 L44 14 L56 26Z M76 26 L88 14 L90 30Z" fill="var(--pink)"/><rect x="54" y="26" width="18" height="4" rx="2" fill="var(--ink)" opacity=".7"/><ellipse cx="96" cy="60" rx="12" ry="9" fill="var(--pink-soft)"/><circle cx="93" cy="60" r="2" fill="var(--ink)"/><circle cx="100" cy="60" r="2" fill="var(--ink)"/><circle cx="82" cy="46" r="3" fill="var(--ink)"/><rect x="34" y="86" width="10" height="10" rx="3" fill="var(--pink)"/><rect x="76" y="86" width="10" height="10" rx="3" fill="var(--pink)"/></svg></div>
-        </div>
-        <div class="metric-grid">
-          <article><span>總資產</span><strong id="total-assets">NT$0</strong></article>
-          <article><span>總負債</span><strong id="total-liabilities">NT$0</strong></article>
-          <article><span>本月支出</span><strong id="month-expense">NT$0</strong></article>
-          <article><span>待送出</span><strong id="pending-count">0 筆</strong></article>
-        </div>
-        <div id="card-reminders" class="card-reminders" aria-live="polite"></div>
-        <div class="overview-grid">
-          <article class="card chart-card">
-            <div class="card-heading"><h2>資產配置</h2><span>台幣估值</span></div>
-            <div class="donut-wrap"><div id="asset-donut" class="donut"></div><ul id="asset-legend"></ul></div>
+        <div class="col">
+          <article class="card hero-card">
+            <div class="hero-text">
+              <p>目前淨資產（依最新現價換算）</p>
+              <strong id="net-worth">NT$0</strong>
+              <small id="sync-status">本機資料已就緒</small>
+              <div class="kpis">
+                <div class="kpi"><span>總資產</span><b id="total-assets">NT$0</b></div>
+                <div class="kpi"><span>負債</span><b id="total-liabilities">NT$0</b></div>
+                <div class="kpi"><span>本月支出</span><b id="month-expense">NT$0</b></div>
+                <div class="kpi"><span>待送出</span><b id="pending-count">0 筆</b></div>
+              </div>
+            </div>
+            <div class="piggy-orbit" aria-hidden="true"><svg viewBox="0 0 120 100" aria-hidden="true"><g class="tail"><path d="M14 58c-8-2-8-12 0-10s4 10-4 8" fill="none" stroke="var(--pink)" stroke-width="3" stroke-linecap="round"/></g><ellipse cx="62" cy="58" rx="46" ry="34" fill="var(--pink)"/><path d="M40 30 L44 14 L56 26Z M76 26 L88 14 L90 30Z" fill="var(--pink)"/><rect x="54" y="26" width="18" height="4" rx="2" fill="var(--ink)" opacity=".7"/><ellipse cx="96" cy="60" rx="12" ry="9" fill="var(--pink-soft)"/><circle cx="93" cy="60" r="2" fill="var(--ink)"/><circle cx="100" cy="60" r="2" fill="var(--ink)"/><circle cx="82" cy="46" r="3" fill="var(--ink)"/><rect x="34" y="86" width="10" height="10" rx="3" fill="var(--pink)"/><rect x="76" y="86" width="10" height="10" rx="3" fill="var(--pink)"/></svg></div>
+          </article>
+          <article class="card chart-card trend-card">
+            <div class="card-heading"><h2>淨資產走勢</h2><span id="trend-period">最近 30 筆</span></div>
+            <div id="net-worth-trend" class="trend-chart empty-state">累積每日快照後顯示</div>
           </article>
           <article class="card chart-card">
             <div class="card-heading"><h2>本月支出分類</h2><span id="expense-total-label"></span></div>
             <div id="expense-bars" class="bar-chart empty-state">還沒有本月支出</div>
           </article>
-          <article class="card chart-card trend-card">
-            <div class="card-heading"><h2>淨資產趨勢</h2><span id="trend-period">最近 30 筆</span></div>
-            <div id="net-worth-trend" class="trend-chart empty-state">累積每日快照後顯示</div>
+        </div>
+        <div class="col">
+          <article class="card chart-card">
+            <div class="card-heading"><h2>資產配置</h2><span>台幣估值</span></div>
+            <div class="donut-wrap"><div id="asset-donut" class="donut"></div><ul id="asset-legend"></ul></div>
+          </article>
+          <article class="card due-card">
+            <div class="card-heading"><h2>快到期的繳費</h2><span>30 天內</span></div>
+            <div id="due-soon" class="list empty-state">30 天內沒有要繳的固定支出</div>
+          </article>
+          <article class="card card-box">
+            <div class="card-heading"><h2>信用卡</h2><span>刷卡當下就算負債</span></div>
+            <div id="card-reminders" class="card-reminders"></div>
+          </article>
+          <article class="card">
+            <div class="card-heading"><h2>最近幾筆</h2><button class="text-button" data-action="transaction">＋ 新增</button></div>
+            <div id="recent-transactions" class="list empty-state">還沒有交易，記下第一筆吧！</div>
           </article>
         </div>
-        <article class="card">
-          <div class="card-heading"><h2>最近交易</h2><button class="text-button" data-action="transaction">＋ 新增</button></div>
-          <div id="recent-transactions" class="list empty-state">還沒有交易，記下第一筆吧！</div>
-        </article>
       </section>
 
-      <section data-view="accounts" class="view">
+      <section data-view="assets" data-pane="all" class="view">
+        <div id="asset-seg" class="seg" role="group" aria-label="資產分類">
+          <button type="button" data-asset-pane="all" aria-pressed="true">全部</button>
+          <button type="button" data-asset-pane="accounts" aria-pressed="false">帳戶</button>
+          <button type="button" data-asset-pane="investments" aria-pressed="false">投資</button>
+        </div>
+        <div data-asset-pane-box="accounts">
         <div class="section-actions">
           <button class="secondary" data-action="wizard">開帳精靈</button>
           <button data-action="account">＋ 新增帳戶</button>
         </div>
         <div id="account-groups" class="stack empty-state">尚無帳戶</div>
-      </section>
-
-      <section data-view="investments" class="view">
+      
+        </div>
+        <div data-asset-pane-box="investments" class="asset-invest">
         <div class="section-actions"><div id="holding-total" class="section-total">總現值 NT$0</div><div class="button-row"><button class="secondary" data-action="prices">↻ 更新報價</button><button data-action="holding">＋ 新增持倉</button></div></div>
         <div id="holding-list" class="holding-groups empty-state">尚無持倉</div>
+      
+        </div>
+      </section>
+
+      <section data-view="fixed" class="view fixed-view">
+        <div class="fixed-grid">
+          <article class="card">
+            <div class="card-heading"><h2>固定支出清單</h2><button class="text-button" data-action="recurring">＋ 新增</button></div>
+            <div id="fixed-seg" class="seg" role="group" aria-label="群組篩選"></div>
+            <div id="recurring-list" class="list empty-state">尚無固定支出</div>
+          </article>
+          <div class="stack">
+            <article class="card">
+              <div class="card-heading"><h2>一年要繳多少</h2><span>不含轉入資產</span></div>
+              <div id="fixed-year" class="fixed-big">NT$0</div>
+              <p class="summary-line">平均每月 <strong id="monthly-recurring">NT$0</strong></p>
+              <div id="fixed-cal" class="cal"></div>
+              <p class="source-note">黃底月份＝有年繳或季繳項目；粉框＝這個月。數字為該月預估要繳（千）。</p>
+            </article>
+            <article class="card">
+              <div class="card-heading"><h2>每月固定支出組成</h2></div>
+              <div id="fixed-bars" class="bar-chart empty-state">尚無固定支出</div>
+            </article>
+          </div>
+        </div>
       </section>
 
       <section data-view="more" class="view">
@@ -93,11 +128,6 @@
           <article class="card guide-entry">
             <div><span class="item-icon">📖</span><h2>不知道這筆怎麼記？</h2><p>保險、信用卡、投資、外幣與轉帳都有範例，避免重複計算。</p></div>
             <button data-nav="guide">打開記帳說明</button>
-          </article>
-          <article class="card">
-            <div class="card-heading"><h2>固定支出</h2><button class="text-button" data-action="recurring">＋ 新增</button></div>
-            <p class="summary-line">月均合計 <strong id="monthly-recurring">NT$0</strong></p>
-            <div id="recurring-list" class="list empty-state">尚無固定支出</div>
           </article>
           <article class="card settings-card">
             <div class="card-heading"><h2>設定</h2><span id="version-label">v1.0.0</span></div>
@@ -168,14 +198,6 @@
         </div>
       </section>
     </main>
-
-    <nav class="bottom-nav" aria-label="手機導覽">
-      <button data-nav="overview" class="active"><span>🏠</span>總覽</button>
-      <button data-nav="accounts"><span>👛</span>帳戶</button>
-      <button data-action="transaction" class="fab" aria-label="記一筆"><span>＋</span></button>
-      <button data-nav="investments"><span>📈</span>投資</button>
-      <button data-nav="more"><span>☰</span>更多</button>
-    </nav>
   </div>
 
   <dialog id="editor-dialog"><form method="dialog" id="editor-form"><header><h2 id="editor-title">新增</h2><button value="cancel" aria-label="關閉">×</button></header><div id="editor-fields" class="form-grid"></div><footer><button value="cancel" class="secondary">取消</button><button id="receipt-button" type="button" class="secondary hidden">📷 拍照辨識</button><button id="receipt-gallery-button" type="button" class="secondary hidden">🖼️ 從相簿選</button><input id="receipt-input" type="file" accept="image/*" capture="environment" hidden><input id="receipt-gallery-input" type="file" accept="image/*" hidden><button id="delete-button" type="button" class="danger hidden">刪除</button><button value="save" id="save-button">儲存</button></footer></form></dialog>

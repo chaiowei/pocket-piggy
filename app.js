@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.8.0";
+const APP_VERSION = "2.9.0";
 const DB_NAME = "pocket-piggy";
 const DB_VERSION = 1;
 const TABLES = ["accounts", "holdings", "recurring", "snapshots", "transactions"];
@@ -437,12 +437,12 @@ function switchView(view) {
   state.view = view;
   $$('[data-view]').forEach((el) => el.classList.toggle("active", el.dataset.view === view));
   $$('[data-nav]').forEach((el) => el.classList.toggle("active", el.dataset.nav === view));
-  $("#page-title").textContent = ({ overview: "總覽", accounts: "帳戶", investments: "投資", guide: "記帳說明", more: "固定支出與設定" })[view];
+  $("#page-title").textContent = ({ overview: "總覽", guide: "記帳說明", assets: "資產", fixed: "固定支出", more: "更多與設定" })[view];
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function render() {
-  renderHeader(); renderOverview(); renderAccounts(); renderHoldings(); renderRecurring(); renderSettings(); renderQueue(); updateNetworkPill();
+  renderHeader(); renderOverview(); renderAccounts(); renderHoldings(); renderRecurring(); renderCurrencySwitch(); renderDueSoon(); renderSettings(); renderQueue(); updateNetworkPill();
 }
 function renderHeader() {
   $("#today-label").textContent = new Intl.DateTimeFormat("zh-TW", { dateStyle: "full", timeZone: "Asia/Taipei" }).format(new Date());
@@ -482,6 +482,7 @@ function renderCardReminders() {
   const cards = state.accounts.filter((row) => row.p?.啟用 !== false && row.p?.類型 === "信用卡").map((card) => ({ card, info: cardStatementInfo(card) })).filter(({ info }) => info && info.amount > 0).sort((a, b) => a.info.dueDate.localeCompare(b.info.dueDate));
   el.innerHTML = cards.map(({ card, info }) => `<article class="card-due ${info.daysDue < 0 ? "overdue" : info.daysDue <= 3 ? "soon" : ""}"><div><span>💳 ${esc(card.p?.名稱 || "信用卡")}</span><strong>${nativeMoney(info.amount, card.p?.幣別 || "TWD")}</strong><small>${info.daysDue < 0 ? `已逾期 ${Math.abs(info.daysDue)} 天` : info.daysDue === 0 ? "今天繳款" : `${info.daysDue} 天後繳款`} · ${esc(info.dueDate)}</small></div><button type="button" data-card-action="pay" data-id="${esc(card.id)}">建立繳款轉帳</button></article>`).join("");
   el.classList.toggle("hidden", cards.length === 0);
+  el.closest(".card-box")?.classList.toggle("hidden", cards.length === 0);
 }
 function renderTrend(currentNet) {
   const byDate = new Map(state.snapshots.map((row) => [row.p?.日期 || row.p?.快照日, number(row.p?.淨資產TWD ?? row.p?.淨資產)]).filter(([date]) => date));
@@ -543,10 +544,58 @@ function renderHoldings() {
     .map((g) => `<section class="holding-group"><header class="group-head"><h3>${esc(g.platform)}<small>${g.rows.length} 檔</small></h3><div class="group-sum"><b>${moneyTWD(g.total)}</b>${returnText(g)}</div></header><div class="card-grid compact">${g.rows.map(card).join("")}</div></section>`).join("");
 }
 function monthlyEquivalent(p) { const amount = toTWD(p.金額, p.幣別); return p.週期 === "年" ? amount / 12 : p.週期 === "季" ? amount / 3 : p.週期 === "週" ? amount * 52 / 12 : amount; }
+// 這個固定支出在 1～12 月各要繳多少（台幣）：年繳放在扣款月份，季繳每 3 個月，週／月均攤
+function recurringByMonth(p) {
+  const amount = toTWD(p.金額, p.幣別 || "TWD"); const cycle = p.週期 || "月"; const out = Array(12).fill(0);
+  const anchor = Math.min(12, Math.max(0, Math.round(number(p.扣款月份)))) || Number(String(p.下次扣款 || "").slice(5, 7)) || 0;
+  if (cycle === "年") { if (anchor) out[anchor - 1] = amount; else out.fill(amount / 12); }
+  else if (cycle === "季") { const start = (anchor || 1) - 1; for (let i = 0; i < 4; i += 1) out[(start + i * 3) % 12] += amount; }
+  else if (cycle === "週") out.fill(amount * 52 / 12);
+  else out.fill(amount);
+  return out;
+}
+function dueSoonItems(days = 30) {
+  const today = todayISO();
+  return state.recurring.filter((x) => x.p?.啟用 !== false && x.p?.性質 !== "轉入資產" && /^\d{4}-\d{2}-\d{2}$/.test(String(x.p?.下次扣款 || "")))
+    .map((row) => ({ row, due: row.p.下次扣款, left: daysBetween(today, row.p.下次扣款) })).filter((x) => x.left >= 0 && x.left <= days).sort((a, b) => a.left - b.left);
+}
+function renderDueSoon() {
+  const el = $("#due-soon"); if (!el) return; const items = dueSoonItems();
+  el.classList.toggle("empty-state", !items.length);
+  el.innerHTML = items.length ? items.map(({ row, due, left }) => `<div class="list-item" data-edit="recurring" data-id="${esc(row.id)}"><div class="item-main"><span class="item-icon">📅</span><div><div class="item-title">${esc(row.p?.名稱 || "固定支出")}</div><div class="item-meta">${esc(due)} · ${left === 0 ? "今天" : `${left} 天後`}</div></div></div><div class="amount">${nativeMoney(row.p?.金額, row.p?.幣別 || "TWD")}<small>${convertedMoney(toTWD(row.p?.金額, row.p?.幣別 || "TWD"))}</small><span class="chip ${left <= 7 ? "soon" : "due"}">${left <= 7 ? "快到期" : "本月"}</span></div></div>`).join("") : "30 天內沒有要繳的固定支出";
+}
+function renderCurrencySwitch() {
+  const el = $("#currency-switch"); if (!el) return;
+  const current = rate(state.settings.displayCurrency || "TWD") ? (state.settings.displayCurrency || "TWD") : "TWD";
+  const options = ["TWD", "THB", "USD", "JPY"].filter((code) => code === "TWD" || rate(code));
+  el.innerHTML = options.map((code) => `<button type="button" data-display-cur="${code}" aria-pressed="${code === current}">${esc(currencySymbol(code).trim())}</button>`).join("");
+}
+async function setDisplayCurrency(code) {
+  if (!code || code === state.settings.displayCurrency) return;
+  await putOne("meta", { ...state.settings, id: "settings", displayCurrency: code }); await loadState(); render(); renderSettings(true);
+}
 function renderRecurring() {
-  const active = state.recurring.filter((x) => x.p?.啟用 !== false); $("#monthly-recurring").textContent = moneyTWD(active.filter((x) => x.p?.性質 !== "轉入資產").reduce((sum, x) => sum + monthlyEquivalent(x.p || {}), 0));
-  const el = $("#recurring-list"); el.classList.toggle("empty-state", !active.length);
-  el.innerHTML = active.length ? active.map((row) => `<div class="list-item" data-edit="recurring" data-id="${esc(row.id)}"><div class="item-main"><span class="item-icon">📅</span><div><div class="item-title">${esc(row.p?.名稱 || "固定支出")}${row.pending ? '<span class="pending-badge">待送</span>' : ""}</div><div class="item-meta">${esc(row.p?.週期 || "月")} · ${esc(row.p?.性質 || "支出")}</div></div></div><strong>${nativeMoney(row.p?.金額, row.p?.幣別 || "TWD")}</strong></div>`).join("") : "尚無固定支出";
+  const active = state.recurring.filter((x) => x.p?.啟用 !== false);
+  const expenses = active.filter((x) => x.p?.性質 !== "轉入資產");
+  $("#monthly-recurring").textContent = moneyTWD(expenses.reduce((sum, x) => sum + monthlyEquivalent(x.p || {}), 0));
+  const groups = ["全部", ...new Set(active.map((x) => x.p?.群組).filter(Boolean))];
+  if (!groups.includes(state.fixedGroup)) state.fixedGroup = "全部";
+  $("#fixed-seg").innerHTML = groups.length > 2 ? groups.map((g) => `<button type="button" data-fixed-group="${esc(g)}" aria-pressed="${g === state.fixedGroup}">${esc(g)}</button>`).join("") : "";
+  const shown = active.filter((x) => state.fixedGroup === "全部" || x.p?.群組 === state.fixedGroup);
+  const el = $("#recurring-list"); el.classList.toggle("empty-state", !shown.length);
+  const today = todayISO();
+  el.innerHTML = shown.length ? shown.map((row) => { const p = row.p || {}; const left = /^\d{4}/.test(String(p.下次扣款 || "")) ? daysBetween(today, p.下次扣款) : null; const asset = p.性質 === "轉入資產";
+    return `<div class="list-item" data-edit="recurring" data-id="${esc(row.id)}"><div class="item-main"><span class="item-icon">${asset ? "📈" : "📅"}</span><div><div class="item-title">${esc(p.名稱 || "固定支出")}${row.pending ? '<span class="pending-badge">待送</span>' : ""}</div><div class="item-meta">${esc(p.週期 || "月")}繳 ${nativeMoney(p.金額, p.幣別 || "TWD")}${p.扣款日 ? ` · ${esc(p.扣款日)} 日` : ""}${asset ? " · 轉入資產" : ""}</div></div></div><div class="amount">${asset ? "" : `${convertedMoney(monthlyEquivalent(p))}<small>／月</small>`}${left !== null && left >= 0 && left <= 7 && !asset ? '<span class="chip soon">快到期</span>' : ""}</div></div>`; }).join("") : "尚無固定支出";
+  const year = expenses.reduce((sum, x) => sum + recurringByMonth(x.p || {}).reduce((a, b) => a + b, 0), 0);
+  $("#fixed-year").textContent = moneyTWD(year, true);
+  const perMonth = Array(12).fill(0); const hot = Array(12).fill(false);
+  for (const x of expenses) { const m = recurringByMonth(x.p || {}); const cycle = x.p?.週期 || "月"; m.forEach((v, i) => { perMonth[i] += v; if ((cycle === "年" || cycle === "季") && v > 0) hot[i] = true; }); }
+  const nowMonth = Number(todayISO().slice(5, 7)) - 1;
+  $("#fixed-cal").innerHTML = perMonth.map((v, i) => `<div class="${hot[i] ? "hot" : ""} ${i === nowMonth ? "now" : ""}">${i + 1}月<b>${formatNumber(fromTWD(v, rate(state.settings.displayCurrency) ? state.settings.displayCurrency : "TWD") / 1000, 1)}k</b></div>`).join("");
+  const byGroup = new Map(); expenses.forEach((x) => { const g = x.p?.群組 || "其他"; byGroup.set(g, (byGroup.get(g) || 0) + monthlyEquivalent(x.p || {})); });
+  const bars = $("#fixed-bars"); bars.classList.toggle("empty-state", !byGroup.size);
+  const max = Math.max(1, ...byGroup.values());
+  bars.innerHTML = byGroup.size ? [...byGroup.entries()].sort((a, b) => b[1] - a[1]).map(([name, value]) => `<div class="bar-row"><span>${esc(name)}</span><div class="bar-track"><div class="bar-fill" style="width:${value / max * 100}%"></div></div><strong>${moneyTWD(value, true)}</strong></div>`).join("") : "尚無固定支出";
 }
 function renderSettings(force = false) {
   const form = $("#settings-form"); if (!form) return;
@@ -1047,6 +1096,9 @@ function findRecord(kind, id) { return state[({ account: "accounts", holding: "h
 function bindEvents() {
   document.addEventListener("click", async (event) => {
     const nav = event.target.closest("[data-nav]"); if (nav) return switchView(nav.dataset.nav);
+    const curBtn = event.target.closest("[data-display-cur]"); if (curBtn) { await setDisplayCurrency(curBtn.dataset.displayCur); return; }
+    const fixedBtn = event.target.closest("[data-fixed-group]"); if (fixedBtn) { state.fixedGroup = fixedBtn.dataset.fixedGroup; renderRecurring(); return; }
+    const paneBtn = event.target.closest("[data-asset-pane]"); if (paneBtn) { $('[data-view="assets"]').dataset.pane = paneBtn.dataset.assetPane; $$("[data-asset-pane]").forEach((b) => b.setAttribute("aria-pressed", String(b === paneBtn))); return; }
     const action = event.target.closest("[data-action]")?.dataset.action;
     if (action === "transaction") openEditor("transaction");
     else if (action === "account") openEditor("account");

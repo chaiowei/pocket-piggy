@@ -151,3 +151,55 @@ dialog form>header,dialog form>footer{background:var(--surface)}
 .bottom-nav .fab{box-shadow:none}
 body{background:var(--bg)}
 .card-due{background:var(--surface);border-color:var(--border);color:var(--ink)}.card-due.soon{background:var(--sun-soft);border-color:var(--sun)}.card-due.overdue{background:var(--pink-soft);border-color:var(--danger)}
+
+/* ===== 2.9.0：幣別切換、快到期繳費、固定支出分頁（沿用 Demo） ===== */
+.cur{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:99px;padding:3px}
+.cur button{background:none;color:var(--muted);padding:4px 11px;border-radius:99px;font-size:.82rem}
+.cur button[aria-pressed="true"]{background:var(--pink);color:#fff}
+.chip{display:inline-block;margin-left:6px;font-size:.68rem;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.chip.soon{background:var(--pink-soft);color:var(--danger)}.chip.due{background:var(--sun-soft);color:var(--ink)}
+.amount .chip{display:block;width:max-content;margin:4px 0 0 auto}
+.seg{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
+.seg:empty{display:none}
+.seg button{background:var(--surface);color:var(--ink);border:1px solid var(--border);padding:5px 12px;border-radius:99px;font-size:.82rem}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.fixed-grid{display:grid;grid-template-columns:1.15fr 1fr;gap:16px;align-items:start}
+.fixed-big{font-family:var(--f-num);font-weight:800;font-size:1.9rem;margin:6px 0}
+.cal{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:10px}
+.cal div{border-radius:12px;padding:7px 0 5px;text-align:center;font-size:.72rem;color:var(--muted);background:var(--bg)}
+.cal div b{display:block;font-family:var(--f-num);font-size:.82rem;color:var(--ink)}
+.cal div.hot{background:var(--sun-soft)}.cal div.now{outline:2px solid var(--pink)}
+.topbar .cur{margin-right:2px}
+@media(max-width:900px){.fixed-grid{grid-template-columns:1fr}.cal{grid-template-columns:repeat(6,1fr)}.topbar .top-actions{gap:6px}}
+@media(max-width:560px){.cur button{padding:4px 8px}.topbar h1{font-size:1.45rem}}
+/* ===== 2.9.0 版面：Demo 的標題列＋分頁列＋總覽兩欄 ===== */
+.side-nav,.bottom-nav{display:none!important}
+main{margin:0 auto;max-width:1080px;padding:16px max(16px,env(safe-area-inset-right)) 96px max(16px,env(safe-area-inset-left))}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+header.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0}
+header.top .brand{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;margin:0;color:var(--ink);text-align:left}
+header.top .brand span{display:grid}header.top .brand strong{font-size:1.35rem;font-weight:400;font-family:var(--f-display)}header.top .brand small{color:var(--muted);font-size:.74rem}
+header.top .top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.icon-button{width:36px;height:36px;font-size:1.05rem;padding:0}
+.icon-button.ghost{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--surface);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);padding:6px max(8px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-right))}
+nav.tabs button{background:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;font-size:.75rem;padding:6px 0;border-radius:14px}
+nav.tabs svg{width:24px;height:24px}
+nav.tabs button.active{color:var(--pink-dark);background:var(--pink-soft)}
+@media(min-width:820px){nav.tabs{position:static;margin:14px 0 6px;border:1px solid var(--border);border-radius:18px;max-width:520px}nav.tabs button{flex-direction:row;justify-content:center;font-size:.9rem}nav.tabs svg{width:20px;height:20px}main{padding-bottom:40px}}
+.view.active.two{display:grid;gap:14px;margin-top:14px}
+.view.two .mini-actions{grid-column:1/-1;margin:0}
+.col{display:grid;gap:14px;min-width:0;align-content:start}
+@media(min-width:820px){.view.active.two{grid-template-columns:1.15fr 1fr;align-items:start}}
+.view.active{margin-top:14px}
+.hero-card{display:block;position:relative;overflow:hidden;min-height:0;padding:18px 20px}
+.hero-text{position:relative;z-index:1}
+.hero-card .piggy-orbit{position:absolute;right:10px;bottom:-6px;width:96px;z-index:0}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;max-width:calc(100% - 100px)}
+.kpi{background:var(--surface);border-radius:14px;padding:8px 10px;min-width:0}
+.kpi span{display:block;font-size:.7rem;color:var(--muted)}
+.kpi b{font-family:var(--f-num);font-weight:800;font-size:.95rem;overflow-wrap:anywhere}
+@media(max-width:560px){.kpis{grid-template-columns:1fr 1fr;max-width:100%}.hero-card .piggy-orbit{width:70px;top:10px;bottom:auto}}
+.card-reminders{margin:0}
+[data-view="assets"][data-pane="accounts"] [data-asset-pane-box="investments"],[data-view="assets"][data-pane="investments"] [data-asset-pane-box="accounts"]{display:none}
+.asset-invest{margin-top:18px}[data-view="assets"][data-pane="investments"] .asset-invest{margin-top:0}
